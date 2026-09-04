@@ -261,7 +261,7 @@ pub fn evaluate_arc_conformance(
 ) -> f64 {
     let interval = Some(TimeInterval {
         min_duration: Some(Duration::seconds(0)),
-        max_duration: Some(Duration::minutes(150)), // 2.5 小时
+        max_duration: Some(Duration::minutes(150)), // 2.5 h
     });
     arc_fine_grained_conformance(from_et, to_et, label, &interval, linked_ocel, None)
 }
