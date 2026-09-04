@@ -160,7 +160,7 @@ fn directly_adjacent_event<'a>(
     }
 }
 
-/// 计算目标事件 e_t 相对于源事件 e_s 的时间得分 Score_time(e_s, e_t)
+/// compute Score_time(e_s, e_t) between the source and target events, given the time interval constraint
 fn calculate_pair_time_score(
     from_time: &DateTime<FixedOffset>,
     to_time: &DateTime<FixedOffset>,
@@ -173,7 +173,7 @@ fn calculate_pair_time_score(
     inter.evaluate_deviation(relative_duration)
 }
 
-/// 计算单个激活事件 e_s 的最优履行打分 Score(e_s) = max_{e_t} (Score_obj * Score_time)
+/// compute fine-grained conformance score for a single activated event e_s: Score(e_s) = max_{e_t} (Score_obj * Score_time)
 pub(crate) fn event_fine_grained_score(
     ev_index: &EventOrSynthetic,
     label: &OCDeclareArcLabel,
@@ -185,7 +185,7 @@ pub(crate) fn event_fine_grained_score(
     let from_time = ev_index.get_timestamp(linked_ocel);
     let mut best_score: f64 = 0.0;
 
-    // 1. 获取 es 关联的所有 bindings 并固定为 Vec
+    // 1. collect all bindings associated with the source event and fix them as a Vec
     let bindings: Vec<_> = label.get_bindings(ev_index, linked_ocel).collect();
     let total_bindings = bindings.len() as f64;
 
@@ -193,7 +193,7 @@ pub(crate) fn event_fine_grained_score(
         return 1.0;
     }
 
-    // 2. 收集所有候选目标事件 et
+    // 2. collect all candidate target events et
     use std::collections::HashSet;
     let mut candidate_evs = HashSet::new();
     for binding in &bindings {
@@ -202,14 +202,14 @@ pub(crate) fn event_fine_grained_score(
         }
     }
 
-    // 3. 遍历候选事件计算联合打分并维护 max
+    // 3. go through all candidate events and find the maximum score
     for ev2 in candidate_evs {
         let to_time = ev2.get_timestamp(linked_ocel);
 
-        // A. 时间视角打分
+        // A. comupute time score: Score_time(e_s, e_t)
         let score_time = calculate_pair_time_score(&from_time, &to_time, interval);
 
-        // B. 对象视角打分: 统计 ev2 满足的 binding 比例
+        // B. compute object score: Score_obj(e_s, e_t)
         let mut matched_count = 0.0;
         for binding in &bindings {
             let mut target_evs = target_events_for_binding(binding, linked_ocel, to_et, view);
@@ -219,7 +219,7 @@ pub(crate) fn event_fine_grained_score(
         }
         let score_obj = matched_count / total_bindings;
 
-        // C. 联合打分取最大值
+        // C. multiply the two scores to get the joint score and update the best score if necessary
         let score_joint = score_obj * score_time;
         if score_joint > best_score {
             best_score = score_joint;
@@ -640,7 +640,7 @@ mod tests {
         let locel = sample_locel();
         let index = E2ORevByTypeIndex::build(&locel);
 
-        // 1. 构造对象关联：EACH(item)
+        // 1. create a label with EACH association to "item"
         let item_assoc = ObjectTypeAssociation::new_simple("item");
         let label = OCDeclareArcLabel {
             each: vec![item_assoc],
@@ -648,13 +648,13 @@ mod tests {
             all: vec![],
         };
 
-        // 2. 时间窗口设为 [0天, 5天]
+        // 2. time interval: min_duration = 0 days, max_duration = 2 days
         let interval = Some(TimeInterval {
             min_duration: Some(Duration::days(0)),
             max_duration: Some(Duration::days(2)),
         });
 
-        // 3. 计算细粒度得分
+        // 3. fine-grained conformance score for "place" -> "ship" with the label and interval
         let score = arc_fine_grained_conformance(
             "place",
             "ship",
