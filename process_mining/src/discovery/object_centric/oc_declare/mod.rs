@@ -149,6 +149,7 @@ pub fn discover_behavior_constraints(
                         from: OCDeclareNode::new(act1.clone()),
                         to: OCDeclareNode::new(act2.clone()),
                         arc_type: OCDeclareArcType::AS,
+                        interval: None, // No interval for AS, as it is not a temporal relation
                         label,
                         counts: options.counts_for_filter,
                     };
@@ -537,6 +538,7 @@ pub(crate) fn refine_oc_arcs_indexed(
                     from: OCDeclareNode::new(act1),
                     to: OCDeclareNode::new(act2),
                     arc_type: arc.arc_type,
+                    interval: None,
                     label: a,
                     counts: (Some(1), None),
                 }));
@@ -847,6 +849,7 @@ pub fn project_oc_arcs(
                         from: OCDeclareNode::new(source.clone()),
                         to: OCDeclareNode::new(target),
                         arc_type,
+                        interval: None,
                         label,
                         counts: (Some(1), None),
                     }));

@@ -14,9 +14,11 @@ use crate::core::{
     },
 };
 
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime, Duration, FixedOffset};
 use macros_process_mining::register_binding;
 use rayon::prelude::*;
+
+use crate::core::process_models::oc_declare::TimeInterval; // Import TimeInterval from the appropriate module
 
 /// Get all events of the given event type satisfying the filters
 ///
@@ -158,6 +160,76 @@ fn directly_adjacent_event<'a>(
     }
 }
 
+/// 计算目标事件 e_t 相对于源事件 e_s 的时间得分 Score_time(e_s, e_t)
+fn calculate_pair_time_score(
+    from_time: &DateTime<FixedOffset>,
+    to_time: &DateTime<FixedOffset>,
+    interval: &Option<TimeInterval>,
+) -> f64 {
+    let Some(ref inter) = interval else {
+        return 1.0;
+    };
+    let relative_duration = to_time.signed_duration_since(*from_time);
+    inter.evaluate_deviation(relative_duration)
+}
+
+/// 计算单个激活事件 e_s 的最优履行打分 Score(e_s) = max_{e_t} (Score_obj * Score_time)
+pub(crate) fn event_fine_grained_score(
+    ev_index: &EventOrSynthetic,
+    label: &OCDeclareArcLabel,
+    to_et: &str,
+    interval: &Option<TimeInterval>,
+    linked_ocel: &SlimLinkedOCEL,
+    view: Option<E2ORevTypeView<'_>>,
+) -> f64 {
+    let from_time = ev_index.get_timestamp(linked_ocel);
+    let mut best_score: f64 = 0.0;
+
+    // 1. 获取 es 关联的所有 bindings 并固定为 Vec
+    let bindings: Vec<_> = label.get_bindings(ev_index, linked_ocel).collect();
+    let total_bindings = bindings.len() as f64;
+
+    if total_bindings == 0.0 {
+        return 1.0;
+    }
+
+    // 2. 收集所有候选目标事件 et
+    use std::collections::HashSet;
+    let mut candidate_evs = HashSet::new();
+    for binding in &bindings {
+        for ev2 in target_events_for_binding(binding, linked_ocel, to_et, view) {
+            candidate_evs.insert(ev2);
+        }
+    }
+
+    // 3. 遍历候选事件计算联合打分并维护 max
+    for ev2 in candidate_evs {
+        let to_time = ev2.get_timestamp(linked_ocel);
+
+        // A. 时间视角打分
+        let score_time = calculate_pair_time_score(&from_time, &to_time, interval);
+
+        // B. 对象视角打分: 统计 ev2 满足的 binding 比例
+        let mut matched_count = 0.0;
+        for binding in &bindings {
+            let mut target_evs = target_events_for_binding(binding, linked_ocel, to_et, view);
+            if target_evs.any(|e| e == ev2) {
+                matched_count += 1.0;
+            }
+        }
+        let score_obj = matched_count / total_bindings;
+
+        // C. 联合打分取最大值
+        let score_joint = score_obj * score_time;
+        if score_joint > best_score {
+            best_score = score_joint;
+        }
+    }
+
+    best_score
+}
+
+
 /// Get fraction of source events violating this constraint arc
 ///
 /// Returns a value from 0 (all source events satisfy this constraint) to 1 (all source events violate this constraint)
@@ -179,6 +251,52 @@ pub(crate) fn violation_fraction(
         .filter(|ev| event_violates(ev, label, to_et, arc_type, counts, linked_ocel, view))
         .count();
     violated_evs_count as f64 / ev_count as f64
+}
+
+pub fn evaluate_arc_conformance(
+    from_et: &str,
+    to_et: &str,
+    label: &OCDeclareArcLabel,
+    linked_ocel: &SlimLinkedOCEL,
+) -> f64 {
+    let interval = Some(TimeInterval {
+        min_duration: Some(Duration::seconds(0)),
+        max_duration: Some(Duration::minutes(150)), // 2.5 小时
+    });
+    arc_fine_grained_conformance(from_et, to_et, label, &interval, linked_ocel, None)
+}
+
+pub fn arc_fine_grained_conformance(
+    from_et: &str,
+    to_et: &str,
+    label: &OCDeclareArcLabel,
+    interval: &Option<TimeInterval>,
+    linked_ocel: &SlimLinkedOCEL,
+    index: Option<&E2ORevByTypeIndex>,
+) -> f64 {
+    let view = index.and_then(|i| i.for_ev_type(to_et));
+    let evs = EventOrSynthetic::get_all_syn_evs(linked_ocel, from_et);
+    let ev_count = evs.len();
+
+    if ev_count == 0 {
+        return 1.0;
+    }
+
+    let total_score: f64 = evs
+        .iter()
+        .map(|ev| {
+            event_fine_grained_score(
+                ev,
+                label,
+                to_et,
+                interval,
+                linked_ocel,
+                view,
+            )
+        })
+        .sum();
+
+    total_score / (ev_count as f64)
 }
 
 /// Checks whether the number of events violating this constraint arc is below (<=) the given noise threshold
@@ -346,6 +464,7 @@ pub fn oc_declare_conformance(ocel: &SlimLinkedOCEL, arc: &OCDeclareArc) -> f64 
 }
 
 #[cfg(test)]
+
 mod tests {
     use super::*;
     use crate::core::event_data::object_centric::{
@@ -514,4 +633,42 @@ mod tests {
         assert_eq!(via_empty_all, via_no_objs);
         assert_eq!(via_empty_all.len(), locel.get_evs_of_type("place").count());
     }
+    #[test]
+    fn test_fine_grained_conformance_with_sample_locel() {
+        use chrono::Duration;
+
+        let locel = sample_locel();
+        let index = E2ORevByTypeIndex::build(&locel);
+
+        // 1. 构造对象关联：EACH(item)
+        let item_assoc = ObjectTypeAssociation::new_simple("item");
+        let label = OCDeclareArcLabel {
+            each: vec![item_assoc],
+            any: vec![],
+            all: vec![],
+        };
+
+        // 2. 时间窗口设为 [0天, 5天]
+        let interval = Some(TimeInterval {
+            min_duration: Some(Duration::days(0)),
+            max_duration: Some(Duration::days(2)),
+        });
+
+        // 3. 计算细粒度得分
+        let score = arc_fine_grained_conformance(
+            "place",
+            "ship",
+            &label,
+            &interval,
+            &locel,
+            Some(&index),
+        );
+
+        println!("\n==========================================");
+        println!("Calculated Fine-grained Score: {:.4}", score);
+        println!("==========================================\n");
+
+        assert!(score > 0.0 && score <= 1.0, "Score should be in (0, 1]");
+    }    
 }
+

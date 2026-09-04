@@ -42,6 +42,62 @@ impl OCDeclareNode {
     }
 }
 
+/// Default decay rate for temporal deviations (e.g. 0.001 per sec, or 0.5 for hours)
+const DEFAULT_LAMBDA_TIME: f64 = 0.001;
+
+/// Unified temporal interval constraint with soft exponential decay.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct TimeInterval {
+    /// Minimum duration bound
+    pub min_duration: Option<Duration>,
+    /// Maximum duration bound
+    pub max_duration: Option<Duration>,
+}
+
+impl TimeInterval {
+    /// Creates a new `TimeInterval` constraint.
+    pub fn new(min: Option<Duration>, max: Option<Duration>) -> Self {
+        Self {
+            min_duration: min,
+            max_duration: max,
+        }
+    }
+
+    /// Evaluates Score_time(e_s, e_t) = exp(-lambda * dist(Delta t, I))
+    pub fn evaluate_deviation(&self, relative: Duration) -> f64 {
+        let dt = relative.num_seconds() as f64;
+
+        let dist = match (self.min_duration, self.max_duration) {
+            (Some(min_d), Some(max_d)) => {
+                let t_min = min_d.num_seconds() as f64;
+                let t_max = max_d.num_seconds() as f64;
+                if dt < t_min {
+                    t_min - dt
+                } else if dt > t_max {
+                    dt - t_max
+                } else {
+                    0.0
+                }
+            }
+            (Some(min_d), None) => {
+                let t_min = min_d.num_seconds() as f64;
+                if dt < t_min { t_min - dt } else { 0.0 }
+            }
+            (None, Some(max_d)) => {
+                let t_max = max_d.num_seconds() as f64;
+                if dt > t_max { dt - t_max } else { 0.0 }
+            }
+            (None, None) => 0.0,
+        };
+
+        if dist <= 0.0 {
+            1.0
+        } else {
+            (-DEFAULT_LAMBDA_TIME * dist).exp()
+        }
+    }
+}
+
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord, JsonSchema,
 )]
@@ -53,6 +109,8 @@ pub struct OCDeclareArc {
     pub to: OCDeclareNode,
     /// Arc type, modeling temporal relation
     pub arc_type: OCDeclareArcType,
+    /// Optional time interval for the arc, specifying temporal constraints
+    pub interval: Option<TimeInterval>,
     /// Arc label specifying object involvement criteria
     pub label: OCDeclareArcLabel,
     /// First tuple element: min count (optional), Second: max count (optional)

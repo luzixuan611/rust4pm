@@ -1,0 +1,49 @@
+{
+  "eventTypes": [
+    {"name": "place_order", "attributes": []},
+    {"name": "order_confirm", "attributes": []}
+  ],
+  "objectTypes": [
+    {"name": "order", "attributes": []},
+    {"name": "item", "attributes": []}
+  ],
+  "events": [
+    {
+      "id": "e_place",
+      "type": "place_order",
+      "time": "2024-01-01T10:00:00Z",
+      "attributes": [],
+      "relationships": [
+        {"objectId": "order_1", "qualifier": "case"},
+        {"objectId": "item_mouse", "qualifier": "contains"},
+        {"objectId": "item_keyboard", "qualifier": "contains"},
+        {"objectId": "item_monitor", "qualifier": "contains"}
+      ]
+    },
+    {
+      "id": "e_confirm_1",
+      "type": "order_confirm",
+      "time": "2024-01-01T12:00:00Z",
+      "attributes": [],
+      "relationships": [
+        {"objectId": "item_mouse", "qualifier": "targets"},
+        {"objectId": "item_keyboard", "qualifier": "targets"}
+      ]
+    },
+    {
+      "id": "e_confirm_2",
+      "type": "order_confirm",
+      "time": "2024-01-01T13:00:00Z",
+      "attributes": [],
+      "relationships": [
+        {"objectId": "item_monitor", "qualifier": "targets"}
+      ]
+    }
+  ],
+  "objects": [
+    {"id": "order_1", "type": "order", "attributes": [], "relationships": []},
+    {"id": "item_mouse", "type": "item", "attributes": [], "relationships": []},
+    {"id": "item_keyboard", "type": "item", "attributes": [], "relationships": []},
+    {"id": "item_monitor", "type": "item", "attributes": [], "relationships": []}
+  ]
+}
