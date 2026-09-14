@@ -262,23 +262,23 @@ pub fn discover_time_interval(
 ) -> Option<TimeInterval> {
     let mut deltas_sec: Vec<f64> = Vec::new();
 
-    // 1. 获取符合类型的事件索引列表
+    // 1. collect all source and target events of the given event types
     let from_evs: Vec<_> = linked_ocel.get_evs_of_type(from_et).collect();
     let to_evs: Vec<_> = linked_ocel.get_evs_of_type(to_et).collect();
 
-    // 2. 遍历事件索引对
+    // 2. go through all pairs of source and target events, compute the time difference, and collect the positive differences
     for &e_s in &from_evs {
-        // get_ev_time 直接返回 DateTime
+        // direct return DateTime
         let t_s = linked_ocel.get_ev_time(e_s);
 
-        // 获取源事件 e_s 绑定的对象索引列表
+        // collect all objects associated with the source event e_s
         let objs_s: Vec<_> = linked_ocel
             .get_e2o(e_s)
             .map(|(_qualifier, obj_idx)| obj_idx)
             .collect();
 
         for &e_t in &to_evs {
-            // 检查目标事件 e_t 是否与 e_s 共享对象
+            // check if the target event e_t shares any object with the source event e_s
             let share_object = linked_ocel
                 .get_e2o(e_t)
                 .any(|(_qualifier, obj_t)| objs_s.contains(&obj_t));
@@ -298,7 +298,7 @@ pub fn discover_time_interval(
         return None;
     }
 
-    // 3. 升序排序并计算 P5 / P80 分位数
+    // 3. calculate the 5th and 80th percentiles of the positive time differences
     deltas_sec.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let n = deltas_sec.len();
 
