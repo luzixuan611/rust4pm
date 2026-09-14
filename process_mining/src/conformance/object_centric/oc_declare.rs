@@ -253,16 +253,74 @@ pub(crate) fn violation_fraction(
     violated_evs_count as f64 / ev_count as f64
 }
 
+
+/// Returns the time interval between the source and target events, based on the 5th and 80th percentiles of the positive time differences
+pub fn discover_time_interval(
+    from_et: &str,
+    to_et: &str,
+    linked_ocel: &SlimLinkedOCEL,
+) -> Option<TimeInterval> {
+    let mut deltas_sec: Vec<f64> = Vec::new();
+
+    // 1. 获取符合类型的事件索引列表
+    let from_evs: Vec<_> = linked_ocel.get_evs_of_type(from_et).collect();
+    let to_evs: Vec<_> = linked_ocel.get_evs_of_type(to_et).collect();
+
+    // 2. 遍历事件索引对
+    for &e_s in &from_evs {
+        // get_ev_time 直接返回 DateTime
+        let t_s = linked_ocel.get_ev_time(e_s);
+
+        // 获取源事件 e_s 绑定的对象索引列表
+        let objs_s: Vec<_> = linked_ocel
+            .get_e2o(e_s)
+            .map(|(_qualifier, obj_idx)| obj_idx)
+            .collect();
+
+        for &e_t in &to_evs {
+            // 检查目标事件 e_t 是否与 e_s 共享对象
+            let share_object = linked_ocel
+                .get_e2o(e_t)
+                .any(|(_qualifier, obj_t)| objs_s.contains(&obj_t));
+
+            if share_object {
+                let t_t = linked_ocel.get_ev_time(e_t);
+                let diff = (*t_t - *t_s).num_seconds();
+
+                if diff >= 0 {
+                    deltas_sec.push(diff as f64);
+                }
+            }
+        }
+    }
+
+    if deltas_sec.is_empty() {
+        return None;
+    }
+
+    // 3. 升序排序并计算 P5 / P80 分位数
+    deltas_sec.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let n = deltas_sec.len();
+
+    let p5_idx = ((n as f64 * 0.05).floor() as usize).min(n - 1);
+    let p80_idx = ((n as f64 * 0.80).floor() as usize).min(n - 1);
+
+    let min_sec = deltas_sec[p5_idx].max(0.0) as i64;
+    let max_sec = deltas_sec[p80_idx].max(0.0) as i64;
+
+    Some(TimeInterval {
+        min_duration: Some(Duration::seconds(min_sec)),
+        max_duration: Some(Duration::seconds(max_sec)),
+    })
+}
+
 pub fn evaluate_arc_conformance(
     from_et: &str,
     to_et: &str,
     label: &OCDeclareArcLabel,
     linked_ocel: &SlimLinkedOCEL,
 ) -> f64 {
-    let interval = Some(TimeInterval {
-        min_duration: Some(Duration::seconds(0)),
-        max_duration: Some(Duration::minutes(150)), // 2.5 h
-    });
+    let interval = discover_time_interval(from_et, to_et, linked_ocel);
     arc_fine_grained_conformance(from_et, to_et, label, &interval, linked_ocel, None)
 }
 

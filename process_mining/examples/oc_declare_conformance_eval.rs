@@ -60,6 +60,8 @@ fn compute_fine_grained_score(
 // ============================================================
 */
 
+
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let base_path: Option<String> = env::args().nth(1);
     let path: PathBuf = match base_path {
@@ -68,38 +70,55 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let event_logs = vec![
-        ("Logistics", path.join("ContainerLogistics.json")),
-        ("P2P", path.join("ocel2-p2p.json")),
-        ("P2P-Weighted", path.join("ocel2_weighted.json")),
-    ];
+        //("Logistics", path.join("ContainerLogistics.json")),
+        //("P2P", path.join("ocel2-p2p.json")),
+        //("P2P-Weighted", path.join("ocel2_weighted.json")),
+        (
+        "BPIC2017",
+        PathBuf::from("/Users/zixuanlu/Desktop/dataset/bpic2017-o2o-workflow-qualifier-index-no-ev-attrs.xml"),
+        "A_Create Application",
+        "A_Submitted",
+        "Application",
+    ),];
 
     let csv_file = File::create("conformance_scores.csv")?;
     let mut writer = BufWriter::new(csv_file);
     writeln!(writer, "dataset,from_act,to_act,score,duration_µs")?;
 
-    for (name, log_path) in event_logs {
+    for (name, log_path, from_act, to_act, obj_type) in event_logs {
         if !log_path.exists() {
             println!("File {:?} not found, skipping...", log_path);
             continue;
         }
 
        println!("--- Evaluating Conformance on {} ---", name);
-        let ocel = OCEL::import_from_path(&log_path).expect("Failed to import OCEL.");
+    let ocel = OCEL::import_from_path(&log_path).expect("Failed to import OCEL.");
 
-        // 1. use ocel.event_types from ocel to get the event types
-        let event_types: Vec<String> = ocel.event_types.iter().map(|et| et.name.clone()).collect();
+    // before move ocel into locel, print some basic statistics
+    println!("Total events: {}", ocel.events.len());
+    println!("Total objects: {}", ocel.objects.len());
 
-        // 2. change ocel to locel
-        let locel = SlimLinkedOCEL::from_ocel(ocel);
+    let count_from = ocel.events.iter().filter(|e| e.event_type == from_act).count();
+    let count_to = ocel.events.iter().filter(|e| e.event_type == to_act).count();
+    println!("Activity count -> {}: {}, {}: {}", from_act, count_from, to_act, count_to);
 
+    let obj_count = ocel.objects.iter().filter(|o| o.object_type == obj_type).count();
+    println!("Object count of type '{}': {}", obj_type, obj_count);
+    // ------------------------------------------------
+
+    // 1. use ocel.event_types from ocel to get the event types
+    let event_types: Vec<String> = ocel.event_types.iter().map(|et| et.name.clone()).collect();
+
+    // 2. change ocel to locel（这一步会消耗掉 ocel，所以必须放在打印后面）
+    let locel = SlimLinkedOCEL::from_ocel(ocel);
         if event_types.len() < 2 {
             println!("Dataset {} has less than 2 event types, skipping.", name);
             continue;
         }
 
-        let from_act = &event_types[0];
-        let to_act = &event_types[1];
-        let item_assoc = ObjectTypeAssociation::new_simple("item");
+        //let from_act = &event_types[0];
+        //let to_act = &event_types[1];
+        let item_assoc = ObjectTypeAssociation::new_simple(obj_type);
         let label = OCDeclareArcLabel {
             each: vec![item_assoc],
             any: vec![],
