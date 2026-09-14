@@ -287,7 +287,7 @@ pub fn discover_time_interval(
                 let t_t = linked_ocel.get_ev_time(e_t);
                 let diff = (*t_t - *t_s).num_seconds();
 
-                if diff >= 0 {
+                if diff > 0 {
                     deltas_sec.push(diff as f64);
                 }
             }
@@ -309,7 +309,7 @@ pub fn discover_time_interval(
     let max_sec = deltas_sec[p80_idx].max(0.0) as i64;
 
     Some(TimeInterval {
-        min_duration: Some(Duration::seconds(min_sec)),
+        min_duration: Some(Duration::zero()),
         max_duration: Some(Duration::seconds(max_sec)),
     })
 }
