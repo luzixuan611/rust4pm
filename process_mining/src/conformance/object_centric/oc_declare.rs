@@ -164,12 +164,21 @@ fn directly_adjacent_event<'a>(
 fn calculate_pair_time_score(
     from_time: &DateTime<FixedOffset>,
     to_time: &DateTime<FixedOffset>,
+    arc_type: OCDeclareArcType,
     interval: &Option<TimeInterval>,
 ) -> f64 {
     let Some(ref inter) = interval else {
         return 1.0;
     };
-    let relative_duration = to_time.signed_duration_since(*from_time);
+    let raw_duration = to_time.signed_duration_since(*from_time);
+
+    let relative_duration = match arc_type {
+        OCDeclareArcType::EF => raw_duration,
+        OCDeclareArcType::EP => -raw_duration,
+        OCDeclareArcType::AS => return 1.0,
+        _ => return 1.0,
+    };
+
     inter.evaluate_deviation(relative_duration)
 }
 
@@ -179,6 +188,7 @@ pub(crate) fn event_fine_grained_score(
     label: &OCDeclareArcLabel,
     to_et: &str,
     interval: &Option<TimeInterval>,
+    arc_type: OCDeclareArcType,
     linked_ocel: &SlimLinkedOCEL,
     view: Option<E2ORevTypeView<'_>>,
 ) -> f64 {
@@ -207,8 +217,7 @@ pub(crate) fn event_fine_grained_score(
         let to_time = ev2.get_timestamp(linked_ocel);
 
         // A. comupute time score: Score_time(e_s, e_t)
-        let score_time = calculate_pair_time_score(&from_time, &to_time, interval);
-
+        let score_time = calculate_pair_time_score(&from_time, &to_time, arc_type, interval);
         // B. compute object score: Score_obj(e_s, e_t)
         let mut matched_count = 0.0;
         for binding in &bindings {
@@ -228,7 +237,6 @@ pub(crate) fn event_fine_grained_score(
 
     best_score
 }
-
 
 /// Get fraction of source events violating this constraint arc
 ///
@@ -253,31 +261,58 @@ pub(crate) fn violation_fraction(
     violated_evs_count as f64 / ev_count as f64
 }
 
-
 /// Returns the time interval between the source and target events, based on the 5th and 80th percentiles of the positive time differences
 pub fn discover_time_interval(
     from_et: &str,
     to_et: &str,
+    arc_type: OCDeclareArcType,
     linked_ocel: &SlimLinkedOCEL,
 ) -> Option<TimeInterval> {
     let mut deltas_sec: Vec<f64> = Vec::new();
 
     // 1. collect all source and target events of the given event types
     let from_evs: Vec<_> = linked_ocel.get_evs_of_type(from_et).collect();
-    let to_evs: Vec<_> = linked_ocel.get_evs_of_type(to_et).collect();
+    //let to_evs: Vec<_> = linked_ocel.get_evs_of_type(to_et).collect();
 
     // 2. go through all pairs of source and target events, compute the time difference, and collect the positive differences
     for &e_s in &from_evs {
         // direct return DateTime
         let t_s = linked_ocel.get_ev_time(e_s);
-
+        
         // collect all objects associated with the source event e_s
-        let objs_s: Vec<_> = linked_ocel
+        let mut target_candidates = std::collections::HashSet::new();
+
+        // from each source-related object，to find related to_et target event
+        for (_qualifier, object) in linked_ocel.get_e2o(e_s) {
+        target_candidates.extend(
+            linked_ocel
+            .get_e2o_rev_of_type(object, to_et)
+            .map(|(_qualifier, e_t)| *e_t),
+        );
+        }
+
+        // each e_t share objects with e_s
+        for e_t in target_candidates {
+            let t_t = linked_ocel.get_ev_time(e_t);
+            let raw_diff = (*t_t - *t_s).num_seconds();
+
+            let diff = match arc_type {
+            OCDeclareArcType::EF => raw_diff,
+            OCDeclareArcType::EP => -raw_diff,
+            OCDeclareArcType::AS => return None,
+            _ => return None,
+            };
+
+            if diff > 0 {
+            deltas_sec.push(diff as f64);
+            }
+            }
+            /*let objs_s: Vec<_> = linked_ocel
             .get_e2o(e_s)
             .map(|(_qualifier, obj_idx)| obj_idx)
             .collect();
 
-        for &e_t in &to_evs {
+            for &e_t in &to_evs {
             // check if the target event e_t shares any object with the source event e_s
             let share_object = linked_ocel
                 .get_e2o(e_t)
@@ -285,13 +320,21 @@ pub fn discover_time_interval(
 
             if share_object {
                 let t_t = linked_ocel.get_ev_time(e_t);
-                let diff = (*t_t - *t_s).num_seconds();
+                let raw_diff = (*t_t - *t_s).num_seconds();
+
+                let diff = match arc_type {
+                    OCDeclareArcType::EF => raw_diff,
+                    OCDeclareArcType::EP => -raw_diff,
+                    OCDeclareArcType::AS => return None,
+                    _ => return None,
+                };
 
                 if diff > 0 {
                     deltas_sec.push(diff as f64);
                 }
             }
-        }
+            }*/
+
     }
 
     if deltas_sec.is_empty() {
@@ -318,10 +361,19 @@ pub fn evaluate_arc_conformance(
     from_et: &str,
     to_et: &str,
     label: &OCDeclareArcLabel,
+    arc_type: OCDeclareArcType,
     linked_ocel: &SlimLinkedOCEL,
 ) -> f64 {
-    let interval = discover_time_interval(from_et, to_et, linked_ocel);
-    arc_fine_grained_conformance(from_et, to_et, label, &interval, linked_ocel, None)
+    let interval = discover_time_interval(from_et, to_et, arc_type, linked_ocel);
+    arc_fine_grained_conformance(
+        from_et,
+        to_et,
+        label,
+        &interval,
+        arc_type,
+        linked_ocel,
+        None,
+    )
 }
 
 pub fn arc_fine_grained_conformance(
@@ -329,6 +381,7 @@ pub fn arc_fine_grained_conformance(
     to_et: &str,
     label: &OCDeclareArcLabel,
     interval: &Option<TimeInterval>,
+    arc_type: OCDeclareArcType,
     linked_ocel: &SlimLinkedOCEL,
     index: Option<&E2ORevByTypeIndex>,
 ) -> f64 {
@@ -342,16 +395,7 @@ pub fn arc_fine_grained_conformance(
 
     let total_score: f64 = evs
         .iter()
-        .map(|ev| {
-            event_fine_grained_score(
-                ev,
-                label,
-                to_et,
-                interval,
-                linked_ocel,
-                view,
-            )
-        })
+        .map(|ev| event_fine_grained_score(ev, label, to_et, interval, arc_type, linked_ocel, view))
         .sum();
 
     total_score / (ev_count as f64)
@@ -713,20 +757,13 @@ mod tests {
         });
 
         // 3. fine-grained conformance score for "place" -> "ship" with the label and interval
-        let score = arc_fine_grained_conformance(
-            "place",
-            "ship",
-            &label,
-            &interval,
-            &locel,
-            Some(&index),
-        );
+        let score =
+            arc_fine_grained_conformance("place", "ship", &label, &interval, &locel, Some(&index));
 
         println!("\n==========================================");
         println!("Calculated Fine-grained Score: {:.4}", score);
         println!("==========================================\n");
 
         assert!(score > 0.0 && score <= 1.0, "Score should be in (0, 1]");
-    }    
+    }
 }
-

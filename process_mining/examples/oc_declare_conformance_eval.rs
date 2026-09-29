@@ -1,12 +1,23 @@
-use std::{env, fs::File, io::{BufWriter, Write}, path::PathBuf, time::Instant};
+use process_mining::core::process_models::oc_declare::{OCDeclareArcType, ObjectTypeAssociation};
 use process_mining::{
-    core::event_data::object_centric::linked_ocel::SlimLinkedOCEL, 
+    conformance::object_centric::oc_declare::{
+        discover_time_interval, evaluate_arc_conformance, oc_declare_conformance,
+    },
+    core::event_data::object_centric::linked_ocel::SlimLinkedOCEL,
     core::process_models::oc_declare::OCDeclareArcLabel,
-    conformance::object_centric::oc_declare::evaluate_arc_conformance,
     Importable, OCEL,
 };
-use process_mining::core::process_models::oc_declare::ObjectTypeAssociation;
+use std::{
+    env,
+    fs::File,
+    io::{BufWriter, Write},
+    path::PathBuf,
+    time::Instant,
+};
 
+use process_mining::discovery::object_centric::oc_declare::{
+    discover_behavior_constraints, OCDeclareDiscoveryOptions, OCDeclareReductionMode,
+};
 /*use process_mining::core::event_data::object_centric::linked_ocel::LinkedOCELAccess;
 #[derive(Debug, Clone, Copy)]
 pub enum WeightingStrategy<'a> {
@@ -60,8 +71,6 @@ fn compute_fine_grained_score(
 // ============================================================
 */
 
-
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let base_path: Option<String> = env::args().nth(1);
     let path: PathBuf = match base_path {
@@ -76,29 +85,106 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (
         "BPIC2017",
         PathBuf::from("/Users/zixuanlu/Desktop/dataset/bpic2017-o2o-workflow-qualifier-index-no-ev-attrs.xml"),
-        "A_Create Application",
+       /* "A_Create Application",
         "A_Submitted",
-        "Application",
+        "Application",*/
     ),];
 
     let csv_file = File::create("conformance_scores.csv")?;
     let mut writer = BufWriter::new(csv_file);
-    writeln!(writer, "dataset,from_act,to_act,score,duration_µs")?;
+    writeln!(
+        writer,
+        "dataset,noise_threshold,from_act,to_act,std_score,fine_score"
+    )?;
 
-    for (name, log_path, from_act, to_act, obj_type) in event_logs {
+    for (name, log_path) in event_logs {
         if !log_path.exists() {
             println!("File {:?} not found, skipping...", log_path);
             continue;
         }
 
-       println!("--- Evaluating Conformance on {} ---", name);
-    let ocel = OCEL::import_from_path(&log_path).expect("Failed to import OCEL.");
+        println!("--- Evaluating Conformance on {} ---", name);
+        let ocel = OCEL::import_from_path(&log_path).expect("Failed to import OCEL.");
 
-    // before move ocel into locel, print some basic statistics
-    println!("Total events: {}", ocel.events.len());
-    println!("Total objects: {}", ocel.objects.len());
+        // before move ocel into locel, print some basic statistics
+        println!("Total events: {}", ocel.events.len());
+        println!("Total objects: {}", ocel.objects.len());
 
-    let count_from = ocel.events.iter().filter(|e| e.event_type == from_act).count();
+        let linked_ocel = SlimLinkedOCEL::from(ocel);
+        //go through noise threshholds
+        let noise_thresholds = vec![0.0, 0.1, 0.2];
+
+        for noise in noise_thresholds {
+            println!(
+                "\n>>> Running Discovery with Noise Threshold: {} <<<",
+                noise
+            );
+
+            //set max 20 rules
+            let mut options = OCDeclareDiscoveryOptions::default();
+
+            options.noise_threshold = noise;
+            options.counts_for_generation = (Some(1), Some(20));
+            options.counts_for_filter = (Some(1), Some(20));
+
+            options.considered_arrow_types = [
+                OCDeclareArcType::EF,
+                OCDeclareArcType::EP,
+                OCDeclareArcType::AS,
+            ]
+            .into_iter()
+            .collect();
+
+            options.reduction = OCDeclareReductionMode::Lossless;
+            options.refinement = true;
+            //dynamic mine the rules
+            let discovered_rules = discover_behavior_constraints(&linked_ocel, options);
+            println!("Discovered {} rules.", discovered_rules.len());
+            for (i, rule) in discovered_rules.iter().enumerate() {
+               let from_act = rule.from.as_str();
+let to_act = rule.to.as_str();
+
+if (i + 1) % 5 == 0 || i + 1 == discovered_rules.len() {
+    println!(
+        "Processed {}/{} rules",
+        i + 1,
+        discovered_rules.len()
+    );
+}
+
+let std_score = oc_declare_conformance(&linked_ocel, rule);
+
+let fine_score = evaluate_arc_conformance(
+    from_act,
+    to_act,
+    &rule.label,
+    rule.arc_type,
+    &linked_ocel,
+);
+
+if i < 5 {
+    println!(
+        "Rule: {} -> {} | Std: {:.4} | Fine: {:.4}",
+        from_act, to_act, std_score, fine_score
+    );
+}
+
+                    // write results to CSV
+                    writeln!(
+                        writer,
+                        "{},{},{},{},{:.4},{:.4}",
+                        name, noise, from_act, to_act, std_score, fine_score
+                    )?;
+                
+            }
+        }
+    }
+
+    writer.flush()?;
+    println!("\nDone! Results saved to conformance_scores_comparison.csv");
+    Ok(())
+}
+/*   let count_from = ocel.events.iter().filter(|e| e.event_type == from_act).count();
     let count_to = ocel.events.iter().filter(|e| e.event_type == to_act).count();
     println!("Activity count -> {}: {}, {}: {}", from_act, count_from, to_act, count_to);
 
@@ -156,4 +242,4 @@ if name.contains("Weighted") {
     writer.flush()?;
     println!("Done! Results saved to conformance_scores.csv");
     Ok(())
-}
+}*/

@@ -46,12 +46,14 @@ impl OCDeclareNode {
 const DEFAULT_LAMBDA_TIME: f64 = std::f64::consts::LN_2 / 86400.0;
 
 /// Unified temporal interval constraint with soft exponential decay.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 pub struct TimeInterval {
     #[schemars(with = "Option<i64>")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_duration: Option<Duration>,
-    
+
     #[schemars(with = "Option<i64>")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_duration: Option<Duration>,
@@ -63,7 +65,6 @@ impl TimeInterval {
         Self {
             min_duration: min,
             max_duration: max,
-            
         }
     }
 
@@ -85,11 +86,19 @@ impl TimeInterval {
             }
             (Some(min_d), None) => {
                 let t_min = min_d.num_seconds() as f64;
-                if dt < t_min { t_min - dt } else { 0.0 }
+                if dt < t_min {
+                    t_min - dt
+                } else {
+                    0.0
+                }
             }
             (None, Some(max_d)) => {
                 let t_max = max_d.num_seconds() as f64;
-                if dt > t_max { dt - t_max } else { 0.0 }
+                if dt > t_max {
+                    dt - t_max
+                } else {
+                    0.0
+                }
             }
             (None, None) => 0.0,
         };
