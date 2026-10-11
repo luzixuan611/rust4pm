@@ -1,7 +1,7 @@
 use process_mining::core::process_models::oc_declare::{OCDeclareArcType, ObjectTypeAssociation};
 use process_mining::{
     conformance::object_centric::oc_declare::{
-        discover_time_interval, evaluate_arc_conformance, oc_declare_conformance,
+        discover_time_interval, evaluate_arc_conformance, oc_declare_conformance, evaluate_arc_score_components,
     },
     core::event_data::object_centric::linked_ocel::SlimLinkedOCEL,
     core::process_models::oc_declare::OCDeclareArcLabel,
@@ -85,16 +85,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (
         "BPIC2017",
         PathBuf::from("/Users/zixuanlu/Desktop/dataset/bpic2017-o2o-workflow-qualifier-index-no-ev-attrs.xml"),
-       /* "A_Create Application",
-        "A_Submitted",
-        "Application",*/
-    ),];
+    ),
+        (
+        "OrderManagement",
+        PathBuf::from("/Users/zixuanlu/Desktop/dataset/order-management.json"),
+    ),
+    ];
 
     let csv_file = File::create("conformance_scores.csv")?;
     let mut writer = BufWriter::new(csv_file);
     writeln!(
         writer,
-        "dataset,noise_threshold,from_act,to_act,std_score,fine_score"
+        "dataset,noise,from_event,to_event,std_score,object_score,temporal_score,combined_score"
     )?;
 
     for (name, log_path) in event_logs {
@@ -112,7 +114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let linked_ocel = SlimLinkedOCEL::from(ocel);
         //go through noise threshholds
-        let noise_thresholds = vec![0.0, 0.1, 0.2];
+        let noise_thresholds = vec![0.0, 0.1];
 
         for noise in noise_thresholds {
             println!(
@@ -141,41 +143,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let discovered_rules = discover_behavior_constraints(&linked_ocel, options);
             println!("Discovered {} rules.", discovered_rules.len());
             for (i, rule) in discovered_rules.iter().enumerate() {
-               let from_act = rule.from.as_str();
-let to_act = rule.to.as_str();
+                let from_act = rule.from.as_str();
+                let to_act = rule.to.as_str();
 
-if (i + 1) % 5 == 0 || i + 1 == discovered_rules.len() {
-    println!(
-        "Processed {}/{} rules",
-        i + 1,
-        discovered_rules.len()
-    );
-}
+                if (i + 1) % 5 == 0 || i + 1 == discovered_rules.len() {
+                    println!("Processed {}/{} rules", i + 1, discovered_rules.len());
+                }
 
-let std_score = oc_declare_conformance(&linked_ocel, rule);
+                let std_score = oc_declare_conformance(&linked_ocel, rule);
 
-let fine_score = evaluate_arc_conformance(
-    from_act,
-    to_act,
-    &rule.label,
-    rule.arc_type,
-    &linked_ocel,
-);
+                let scores = evaluate_arc_score_components(
+                    from_act,
+                    to_act,
+                    &rule.label,
+                    rule.arc_type,
+                    &linked_ocel,
+                );
 
-if i < 5 {
-    println!(
-        "Rule: {} -> {} | Std: {:.4} | Fine: {:.4}",
-        from_act, to_act, std_score, fine_score
-    );
-}
+                let fine_score = scores.combined_score;
 
-                    // write results to CSV
-                    writeln!(
-                        writer,
-                        "{},{},{},{},{:.4},{:.4}",
-                        name, noise, from_act, to_act, std_score, fine_score
-                    )?;
-                
+                if i < 5 {
+                    println!(
+                        "Rule: {} -> {} | Std: {:.4} | Obj: {:.4} | Time: {:.4} | Combined: {:.4}",
+                        from_act,
+                        to_act,
+                        std_score,
+                        scores.object_score,
+                        scores.temporal_score,
+                        scores.combined_score,
+                    );
+                }
+
+                // write results to CSV
+                writeln!(
+                    writer,
+                    "{},{},{},{},{:.4},{:.4},{:.4},{:.4}",
+                    name,
+                    noise,
+                    from_act,
+                    to_act,
+                    std_score,
+                    scores.object_score,
+                    scores.temporal_score,
+                    fine_score,
+                )?;
             }
         }
     }

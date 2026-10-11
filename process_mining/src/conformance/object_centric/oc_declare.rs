@@ -192,50 +192,16 @@ pub(crate) fn event_fine_grained_score(
     linked_ocel: &SlimLinkedOCEL,
     view: Option<E2ORevTypeView<'_>>,
 ) -> f64 {
-    let from_time = ev_index.get_timestamp(linked_ocel);
-    let mut best_score: f64 = 0.0;
-
-    // 1. collect all bindings associated with the source event and fix them as a Vec
-    let bindings: Vec<_> = label.get_bindings(ev_index, linked_ocel).collect();
-    let total_bindings = bindings.len() as f64;
-
-    if total_bindings == 0.0 {
-        return 1.0;
-    }
-
-    // 2. collect all candidate target events et
-    use std::collections::HashSet;
-    let mut candidate_evs = HashSet::new();
-    for binding in &bindings {
-        for ev2 in target_events_for_binding(binding, linked_ocel, to_et, view) {
-            candidate_evs.insert(ev2);
-        }
-    }
-
-    // 3. go through all candidate events and find the maximum score
-    for ev2 in candidate_evs {
-        let to_time = ev2.get_timestamp(linked_ocel);
-
-        // A. comupute time score: Score_time(e_s, e_t)
-        let score_time = calculate_pair_time_score(&from_time, &to_time, arc_type, interval);
-        // B. compute object score: Score_obj(e_s, e_t)
-        let mut matched_count = 0.0;
-        for binding in &bindings {
-            let mut target_evs = target_events_for_binding(binding, linked_ocel, to_et, view);
-            if target_evs.any(|e| e == ev2) {
-                matched_count += 1.0;
-            }
-        }
-        let score_obj = matched_count / total_bindings;
-
-        // C. multiply the two scores to get the joint score and update the best score if necessary
-        let score_joint = score_obj * score_time;
-        if score_joint > best_score {
-            best_score = score_joint;
-        }
-    }
-
-    best_score
+    event_fine_grained_score_components(
+        ev_index,
+        label,
+        to_et,
+        interval,
+        arc_type,
+        linked_ocel,
+        view,
+    )
+    .combined_score
 }
 
 /// Get fraction of source events violating this constraint arc
@@ -265,6 +231,7 @@ pub(crate) fn violation_fraction(
 pub fn discover_time_interval(
     from_et: &str,
     to_et: &str,
+    label: &OCDeclareArcLabel,
     arc_type: OCDeclareArcType,
     linked_ocel: &SlimLinkedOCEL,
 ) -> Option<TimeInterval> {
@@ -278,63 +245,94 @@ pub fn discover_time_interval(
     for &e_s in &from_evs {
         // direct return DateTime
         let t_s = linked_ocel.get_ev_time(e_s);
-        
-        // collect all objects associated with the source event e_s
-        let mut target_candidates = std::collections::HashSet::new();
 
-        // from each source-related object，to find related to_et target event
-        for (_qualifier, object) in linked_ocel.get_e2o(e_s) {
-        target_candidates.extend(
-            linked_ocel
-            .get_e2o_rev_of_type(object, to_et)
-            .map(|(_qualifier, e_t)| *e_t),
-        );
+        let source = EventOrSynthetic::Event(*e_s);
+
+        // get object bindings for the source event
+        let bindings: Vec<_> = label.get_bindings(&source, linked_ocel).collect();
+
+        if bindings.is_empty() {
+            continue;
         }
 
-        // each e_t share objects with e_s
-        for e_t in target_candidates {
+        // collect candidate target which satisfy min. 1 binding
+        let mut candidates = std::collections::HashSet::new();
+
+        for binding in &bindings {
+            candidates.extend(target_events_for_binding(binding, linked_ocel, to_et, None));
+        }
+
+        // only keep fulfillment target which satisfy all bindings
+        let full_candidates: Vec<_> = candidates
+            .into_iter()
+            .filter(|candidate| {
+                bindings.iter().all(|binding| {
+                    target_events_for_binding(binding, linked_ocel, to_et, None)
+                        .any(|target| target == *candidate)
+                })
+            })
+            .collect();
+
+        // EF：take earliest target
+        // EP：take latest target
+        let selected_target = match arc_type {
+            OCDeclareArcType::EF => full_candidates
+                .into_iter()
+                .filter(|target| target.get_timestamp(linked_ocel) > *t_s)
+                .min_by_key(|target| target.get_timestamp(linked_ocel)),
+
+            OCDeclareArcType::EP => full_candidates
+                .into_iter()
+                .filter(|target| target.get_timestamp(linked_ocel) < *t_s)
+                .max_by_key(|target| target.get_timestamp(linked_ocel)),
+
+            OCDeclareArcType::AS => return None,
+            _ => return None,
+        };
+
+        if let Some(target) = selected_target {
+            let raw_diff = target
+                .get_timestamp(linked_ocel)
+                .signed_duration_since(*t_s)
+                .num_seconds();
+
+            let diff = match arc_type {
+                OCDeclareArcType::EF => raw_diff,
+                OCDeclareArcType::EP => -raw_diff,
+                _ => unreachable!(),
+            };
+
+            if diff > 0 {
+                deltas_sec.push(diff as f64);
+            }
+        }
+        /*let objs_s: Vec<_> = linked_ocel
+        .get_e2o(e_s)
+        .map(|(_qualifier, obj_idx)| obj_idx)
+        .collect();
+
+        for &e_t in &to_evs {
+        // check if the target event e_t shares any object with the source event e_s
+        let share_object = linked_ocel
+            .get_e2o(e_t)
+            .any(|(_qualifier, obj_t)| objs_s.contains(&obj_t));
+
+        if share_object {
             let t_t = linked_ocel.get_ev_time(e_t);
             let raw_diff = (*t_t - *t_s).num_seconds();
 
             let diff = match arc_type {
-            OCDeclareArcType::EF => raw_diff,
-            OCDeclareArcType::EP => -raw_diff,
-            OCDeclareArcType::AS => return None,
-            _ => return None,
+                OCDeclareArcType::EF => raw_diff,
+                OCDeclareArcType::EP => -raw_diff,
+                OCDeclareArcType::AS => return None,
+                _ => return None,
             };
 
             if diff > 0 {
-            deltas_sec.push(diff as f64);
+                deltas_sec.push(diff as f64);
             }
-            }
-            /*let objs_s: Vec<_> = linked_ocel
-            .get_e2o(e_s)
-            .map(|(_qualifier, obj_idx)| obj_idx)
-            .collect();
-
-            for &e_t in &to_evs {
-            // check if the target event e_t shares any object with the source event e_s
-            let share_object = linked_ocel
-                .get_e2o(e_t)
-                .any(|(_qualifier, obj_t)| objs_s.contains(&obj_t));
-
-            if share_object {
-                let t_t = linked_ocel.get_ev_time(e_t);
-                let raw_diff = (*t_t - *t_s).num_seconds();
-
-                let diff = match arc_type {
-                    OCDeclareArcType::EF => raw_diff,
-                    OCDeclareArcType::EP => -raw_diff,
-                    OCDeclareArcType::AS => return None,
-                    _ => return None,
-                };
-
-                if diff > 0 {
-                    deltas_sec.push(diff as f64);
-                }
-            }
-            }*/
-
+        }
+        }*/
     }
 
     if deltas_sec.is_empty() {
@@ -357,6 +355,105 @@ pub fn discover_time_interval(
     })
 }
 
+pub(crate) fn event_fine_grained_score_components(
+    ev_index: &EventOrSynthetic,
+    label: &OCDeclareArcLabel,
+    to_et: &str,
+    interval: &Option<TimeInterval>,
+    arc_type: OCDeclareArcType,
+    linked_ocel: &SlimLinkedOCEL,
+    view: Option<E2ORevTypeView<'_>>,
+) -> FineGrainedScores {
+    let from_time = ev_index.get_timestamp(linked_ocel);
+    let mut best_object_score: f64 = 0.0;
+    let mut temporal_score_of_best_combined: f64 = 0.0;
+    let mut best_combined_score: f64 = 0.0;
+    let bindings: Vec<_> = label.get_bindings(ev_index, linked_ocel).collect();
+    let total_bindings = bindings.len() as f64;
+
+    if total_bindings == 0.0 {
+        return FineGrainedScores {
+            object_score: 1.0,
+            temporal_score: 1.0,
+            combined_score: 1.0,
+        };
+    }
+
+    use std::collections::HashSet;
+    let mut candidate_evs = HashSet::new();
+
+    for binding in &bindings {
+        for ev2 in target_events_for_binding(binding, linked_ocel, to_et, view) {
+            candidate_evs.insert(ev2);
+        }
+    }
+
+    for ev2 in candidate_evs {
+        let to_time = ev2.get_timestamp(linked_ocel);
+
+        let score_time =
+            calculate_pair_time_score(&from_time, &to_time, arc_type, interval);
+
+        let mut matched_count = 0.0;
+        for binding in &bindings {
+            let mut target_evs =
+                target_events_for_binding(binding, linked_ocel, to_et, view);
+
+            if target_evs.any(|e| e == ev2) {
+                matched_count += 1.0;
+            }
+        }
+
+        let score_obj = matched_count / total_bindings;
+        let score_joint = score_obj * score_time;
+
+        // best candidate at object level
+        if score_obj > best_object_score {
+            best_object_score = score_obj;
+        }
+
+        // obj x temporal and keep highest combined score
+        if score_joint > best_combined_score {
+            best_combined_score = score_joint;
+            temporal_score_of_best_combined = score_time;
+        }
+    }
+
+    FineGrainedScores {
+        object_score: best_object_score,
+        temporal_score: temporal_score_of_best_combined,
+        combined_score: best_combined_score,
+    }
+}
+
+//separate score
+pub struct FineGrainedScores {
+    pub object_score: f64,
+    pub temporal_score: f64,
+    pub combined_score: f64,
+}
+
+
+pub fn evaluate_arc_score_components(
+    from_et: &str,
+    to_et: &str,
+    label: &OCDeclareArcLabel,
+    arc_type: OCDeclareArcType,
+    linked_ocel: &SlimLinkedOCEL,
+) -> FineGrainedScores {
+    let interval = discover_time_interval(from_et, to_et, label, arc_type, linked_ocel);
+    
+    arc_fine_grained_score_components(
+    from_et,
+    to_et,
+    label,
+    &interval,
+    arc_type,
+    linked_ocel,
+    None,
+)
+}
+
 pub fn evaluate_arc_conformance(
     from_et: &str,
     to_et: &str,
@@ -364,17 +461,57 @@ pub fn evaluate_arc_conformance(
     arc_type: OCDeclareArcType,
     linked_ocel: &SlimLinkedOCEL,
 ) -> f64 {
-    let interval = discover_time_interval(from_et, to_et, arc_type, linked_ocel);
-    arc_fine_grained_conformance(
-        from_et,
-        to_et,
-        label,
-        &interval,
-        arc_type,
-        linked_ocel,
-        None,
-    )
+    evaluate_arc_score_components(from_et, to_et, label, arc_type, linked_ocel).combined_score
 }
+
+pub fn arc_fine_grained_score_components(
+    from_et: &str,
+    to_et: &str,
+    label: &OCDeclareArcLabel,
+    interval: &Option<TimeInterval>,
+    arc_type: OCDeclareArcType,
+    linked_ocel: &SlimLinkedOCEL,
+    index: Option<&E2ORevByTypeIndex>,
+) -> FineGrainedScores {
+    let view = index.and_then(|i| i.for_ev_type(to_et));
+    let evs = EventOrSynthetic::get_all_syn_evs(linked_ocel, from_et);
+    let ev_count = evs.len();
+
+    if ev_count == 0 {
+        return FineGrainedScores {
+            object_score: 1.0,
+            temporal_score: 1.0,
+            combined_score: 1.0,
+        };
+    }
+
+    let mut total_object_score = 0.0;
+    let mut total_temporal_score = 0.0;
+    let mut total_combined_score = 0.0;
+
+    for ev in &evs {
+        let scores = event_fine_grained_score_components(
+            ev,
+            label,
+            to_et,
+            interval,
+            arc_type,
+            linked_ocel,
+            view,
+        );
+
+        total_object_score += scores.object_score;
+        total_temporal_score += scores.temporal_score;
+        total_combined_score += scores.combined_score;
+    }
+
+    FineGrainedScores {
+        object_score: total_object_score / ev_count as f64,
+        temporal_score: total_temporal_score / ev_count as f64,
+        combined_score: total_combined_score / ev_count as f64,
+    }
+}
+
 
 pub fn arc_fine_grained_conformance(
     from_et: &str,
@@ -385,20 +522,15 @@ pub fn arc_fine_grained_conformance(
     linked_ocel: &SlimLinkedOCEL,
     index: Option<&E2ORevByTypeIndex>,
 ) -> f64 {
-    let view = index.and_then(|i| i.for_ev_type(to_et));
-    let evs = EventOrSynthetic::get_all_syn_evs(linked_ocel, from_et);
-    let ev_count = evs.len();
-
-    if ev_count == 0 {
-        return 1.0;
-    }
-
-    let total_score: f64 = evs
-        .iter()
-        .map(|ev| event_fine_grained_score(ev, label, to_et, interval, arc_type, linked_ocel, view))
-        .sum();
-
-    total_score / (ev_count as f64)
+    arc_fine_grained_score_components(
+        from_et,
+        to_et,
+        label,
+        interval,
+        arc_type,
+        linked_ocel,
+        index,
+    ).combined_score
 }
 
 /// Checks whether the number of events violating this constraint arc is below (<=) the given noise threshold

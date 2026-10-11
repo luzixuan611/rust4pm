@@ -1,117 +1,115 @@
-dataset,noise_threshold,from_act,to_act,std_score,fine_score
-BPIC2017,0,A_Complete,A_Accepted,1.0000,1.0000
-BPIC2017,0,A_Pending,A_Validating,1.0000,1.0000
-BPIC2017,0,O_Created,O_Create Offer,1.0000,1.0000
-BPIC2017,0,O_Refused,O_Create Offer,1.0000,1.0000
-BPIC2017,0,W_Personal Loan collection,W_Complete application,1.0000,0.8328
-BPIC2017,0,A_Submitted,A_Concept,1.0000,1.0000
-BPIC2017,0,W_Personal Loan collection,W_Validate application,1.0000,0.6623
-BPIC2017,0,W_Shortened completion ,W_Complete application,1.0000,1.0000
-BPIC2017,0,W_Personal Loan collection,W_Call after offers,1.0000,0.9091
-BPIC2017,0,A_Incomplete,A_Validating,1.0000,1.0000
-BPIC2017,0,O_Refused,O_Created,1.0000,1.0000
-BPIC2017,0,O_Accepted,O_Returned,1.0000,1.0000
-BPIC2017,0,A_Accepted,A_Concept,1.0000,1.0000
-BPIC2017,0,O_Returned,O_Created,1.0000,1.0000
-BPIC2017,0,O_Sent (online only),O_Create Offer,1.0000,1.0000
-BPIC2017,0,A_Accepted,A_Create Application,1.0000,1.0000
-BPIC2017,0,A_Denied,A_Accepted,1.0000,1.0000
-BPIC2017,0,O_Returned,O_Create Offer,1.0000,1.0000
-BPIC2017,0,O_Sent (mail and online),O_Create Offer,1.0000,1.0000
-BPIC2017,0,O_Sent (mail and online),O_Created,1.0000,1.0000
-BPIC2017,0,O_Sent (online only),O_Created,1.0000,1.0000
-BPIC2017,0,A_Cancelled,A_Accepted,1.0000,1.0000
-BPIC2017,0,A_Concept,A_Accepted,1.0000,1.0000
-BPIC2017,0,A_Create Application,A_Accepted,1.0000,1.0000
-BPIC2017,0,A_Validating,A_Complete,1.0000,1.0000
-BPIC2017,0,O_Cancelled,O_Create Offer,1.0000,1.0000
-BPIC2017,0,O_Cancelled,O_Created,1.0000,1.0000
-BPIC2017,0,O_Create Offer,O_Created,1.0000,1.0000
-BPIC2017,0.1,O_Create Offer,O_Sent (mail and online),0.9162,0.9162
-BPIC2017,0.1,O_Returned,O_Sent (mail and online),0.9557,0.9557
-BPIC2017,0.1,O_Create Offer,A_Denied,0.9141,0.9141
-BPIC2017,0.1,W_Personal Loan collection,W_Validate application,1.0000,0.6623
-BPIC2017,0.1,A_Pending,A_Validating,1.0000,1.0000
-BPIC2017,0.1,W_Shortened completion ,W_Handle leads,0.9622,0.9622
-BPIC2017,0.1,A_Create Application,A_Accepted,1.0000,1.0000
-BPIC2017,0.1,W_Assess potential fraud,W_Call after offers,0.9421,0.9623
-BPIC2017,0.1,O_Sent (mail and online),O_Create Offer,0.9921,0.9921
-BPIC2017,0.1,W_Complete application,W_Call after offers,0.9930,0.9930
-BPIC2017,0.1,O_Accepted,O_Returned,1.0000,1.0000
-BPIC2017,0.1,O_Created,O_Sent (mail and online),0.9162,0.9162
-BPIC2017,0.1,W_Shortened completion ,W_Complete application,1.0000,1.0000
-BPIC2017,0.1,W_Shortened completion ,A_Denied,0.9538,0.9628
-BPIC2017,0.1,W_Shortened completion ,A_Incomplete,0.9832,0.9832
-BPIC2017,0.1,A_Denied,A_Validating,0.9550,0.9550
-BPIC2017,0.1,W_Handle leads,W_Complete application,1.0000,1.0000
-BPIC2017,0.1,A_Accepted,A_Concept,1.0000,1.0000
-BPIC2017,0.1,A_Complete,A_Accepted,0.9481,0.9481
-BPIC2017,0.1,A_Accepted,A_Complete,0.9437,0.9437
-BPIC2017,0.1,A_Cancelled,A_Complete,0.9895,0.9895
-BPIC2017,0.1,O_Cancelled,O_Created,1.0000,1.0000
-BPIC2017,0.1,A_Concept,A_Accepted,1.0000,1.0000
-BPIC2017,0.1,W_Call incomplete files,W_Call after offers,1.0000,1.0000
-BPIC2017,0.1,A_Submitted,A_Concept,1.0000,1.0000
-BPIC2017,0.1,W_Validate application,W_Call after offers,1.0000,1.0000
-BPIC2017,0.1,A_Accepted,A_Create Application,1.0000,1.0000
-BPIC2017,0.1,W_Shortened completion ,O_Refused,0.9538,0.9561
-BPIC2017,0.1,A_Validating,A_Complete,1.0000,1.0000
-BPIC2017,0.1,O_Refused,O_Sent (mail and online),0.9572,0.9572
-BPIC2017,0.1,A_Incomplete,A_Validating,1.0000,1.0000
-BPIC2017,0.1,O_Sent (online only),O_Create Offer,0.9847,0.9847
-BPIC2017,0.1,O_Sent (online only),O_Created,0.9847,0.9847
-BPIC2017,0.1,O_Cancelled,O_Create Offer,1.0000,1.0000
-BPIC2017,0.1,W_Shortened completion ,W_Call after offers,0.9160,0.9240
-BPIC2017,0.1,O_Created,A_Denied,0.9141,0.9141
-BPIC2017,0.1,O_Sent (mail and online),O_Created,0.9921,0.9921
-BPIC2017,0.1,W_Call after offers,W_Complete application,1.0000,1.0000
-BPIC2017,0.1,O_Sent (mail and online),A_Denied,0.9134,0.9134
-BPIC2017,0.2,O_Returned,O_Sent (mail and online),0.9557,0.9557
-BPIC2017,0.2,O_Refused,O_Sent (mail and online),0.9572,0.9572
-BPIC2017,0.2,A_Concept,A_Accepted,1.0000,1.0000
-BPIC2017,0.2,O_Sent (mail and online),O_Refused,0.8927,0.8927
-BPIC2017,0.2,W_Shortened completion ,A_Incomplete,0.8067,0.7815
-BPIC2017,0.2,O_Sent (online only),A_Denied,0.9482,0.9482
-BPIC2017,0.2,O_Cancelled,O_Sent (mail and online),0.8976,0.8976
-BPIC2017,0.2,W_Call after offers,W_Complete application,1.0000,1.0000
-BPIC2017,0.2,O_Sent (online only),O_Created,0.9847,0.9847
-BPIC2017,0.2,W_Call incomplete files,W_Validate application,1.0000,1.0000
-BPIC2017,0.2,A_Incomplete,A_Pending,0.8548,0.8548
-BPIC2017,0.2,W_Handle leads,W_Complete application,1.0000,1.0000
-BPIC2017,0.2,A_Accepted,O_Refused,0.8883,0.8883
-BPIC2017,0.2,A_Incomplete,A_Validating,1.0000,1.0000
-BPIC2017,0.2,A_Denied,A_Validating,0.9550,0.9550
-BPIC2017,0.2,A_Submitted,A_Concept,0.8322,0.8322
-BPIC2017,0.2,O_Sent (online only),O_Refused,0.9176,0.9176
-BPIC2017,0.2,A_Create Application,A_Accepted,1.0000,1.0000
-BPIC2017,0.2,A_Validating,A_Complete,1.0000,1.0000
-BPIC2017,0.2,A_Accepted,A_Complete,0.9437,0.9437
-BPIC2017,0.2,A_Pending,A_Validating,1.0000,1.0000
-BPIC2017,0.2,O_Created,O_Create Offer,0.8256,1.0000
-BPIC2017,0.2,A_Validating,A_Incomplete,0.8231,0.8231
-BPIC2017,0.2,O_Create Offer,O_Refused,0.8926,0.8926
-BPIC2017,0.2,O_Create Offer,O_Created,0.8256,1.0000
-BPIC2017,0.2,A_Accepted,A_Create Application,1.0000,1.0000
-BPIC2017,0.2,A_Denied,O_Sent (online only),0.8748,0.8648
-BPIC2017,0.2,O_Sent (mail and online),O_Created,0.9921,0.9921
-BPIC2017,0.2,A_Complete,A_Accepted,0.9481,0.9481
-BPIC2017,0.2,W_Assess potential fraud,W_Validate application,0.8909,0.8947
-BPIC2017,0.2,W_Personal Loan collection,W_Validate application,1.0000,0.6623
-BPIC2017,0.2,A_Validating,A_Pending,0.8244,0.8244
-BPIC2017,0.2,O_Accepted,O_Returned,1.0000,1.0000
-BPIC2017,0.2,O_Refused,O_Sent (online only),0.8722,0.8639
-BPIC2017,0.2,W_Shortened completion ,W_Call after offers,0.9160,0.9240
-BPIC2017,0.2,O_Created,O_Refused,0.8926,0.8926
-BPIC2017,0.2,O_Created,O_Sent (mail and online),0.9162,0.9162
-BPIC2017,0.2,W_Shortened completion ,W_Complete application,1.0000,1.0000
-BPIC2017,0.2,W_Shortened completion ,W_Handle leads,0.9622,0.9622
-BPIC2017,0.2,W_Complete application,W_Call after offers,0.9930,0.9930
-BPIC2017,0.2,A_Accepted,A_Concept,1.0000,1.0000
-BPIC2017,0.2,A_Cancelled,A_Complete,0.9895,0.9895
-BPIC2017,0.2,W_Shortened completion ,A_Denied,0.9538,0.9628
-BPIC2017,0.2,W_Shortened completion ,A_Denied,0.8487,0.8487
-BPIC2017,0.2,A_Complete,O_Refused,0.8891,0.8891
-BPIC2017,0.2,O_Refused,A_Cancelled,0.8850,0.8850
-BPIC2017,0.2,W_Shortened completion ,O_Refused,0.9538,0.9561
-BPIC2017,0.2,W_Shortened completion ,O_Refused,0.8319,0.8319
-BPIC2017,0.2,W_Validate application,W_Call after offers,1.0000,1.0000
+dataset,noise,from_event,to_event,std_score,object_score,temporal_score,combined_score
+BPIC2017,0,A_Submitted,A_Concept,1.0000,1.0000,0.9753,0.9753
+BPIC2017,0,W_Personal Loan collection,W_Call after offers,1.0000,1.0000,0.8182,0.8182
+BPIC2017,0,W_Personal Loan collection,W_Validate application,1.0000,1.0000,0.8182,0.8182
+BPIC2017,0,A_Accepted,A_Concept,1.0000,1.0000,0.8889,0.8889
+BPIC2017,0,A_Denied,A_Accepted,1.0000,1.0000,0.8308,0.8308
+BPIC2017,0,O_Created,O_Create Offer,1.0000,1.0000,1.0000,1.0000
+BPIC2017,0,A_Pending,A_Validating,1.0000,1.0000,0.8445,0.8445
+BPIC2017,0,O_Refused,O_Created,1.0000,1.0000,0.8272,0.8272
+BPIC2017,0,O_Returned,O_Create Offer,1.0000,1.0000,0.8498,0.8498
+BPIC2017,0,A_Validating,A_Complete,1.0000,1.0000,0.8275,0.8275
+BPIC2017,0,O_Returned,O_Created,1.0000,1.0000,0.8498,0.8498
+BPIC2017,0,A_Accepted,A_Create Application,1.0000,1.0000,0.8868,0.8868
+BPIC2017,0,O_Refused,O_Create Offer,1.0000,1.0000,0.8272,0.8272
+BPIC2017,0,W_Personal Loan collection,W_Complete application,1.0000,1.0000,0.8182,0.8182
+BPIC2017,0,O_Sent (online only),O_Create Offer,1.0000,1.0000,0.9921,0.9921
+BPIC2017,0,O_Create Offer,O_Created,1.0000,1.0000,1.0000,1.0000
+BPIC2017,0,A_Incomplete,A_Validating,1.0000,1.0000,0.9043,0.9043
+BPIC2017,0,A_Create Application,A_Accepted,1.0000,1.0000,0.8868,0.8868
+BPIC2017,0,A_Concept,A_Accepted,1.0000,1.0000,0.8889,0.8889
+BPIC2017,0,O_Accepted,O_Returned,1.0000,1.0000,0.8274,0.8274
+BPIC2017,0,A_Cancelled,A_Accepted,1.0000,1.0000,0.8823,0.8823
+BPIC2017,0,O_Cancelled,O_Created,1.0000,1.0000,0.8821,0.8821
+BPIC2017,0,O_Sent (mail and online),O_Create Offer,1.0000,1.0000,0.9953,0.9953
+BPIC2017,0,O_Sent (mail and online),O_Created,1.0000,1.0000,0.9953,0.9953
+BPIC2017,0,W_Shortened completion ,W_Complete application,1.0000,1.0000,0.9142,0.9142
+BPIC2017,0,O_Cancelled,O_Create Offer,1.0000,1.0000,0.8821,0.8821
+BPIC2017,0,O_Sent (online only),O_Created,1.0000,1.0000,0.9921,0.9921
+BPIC2017,0,A_Complete,A_Accepted,1.0000,1.0000,0.9734,0.9734
+BPIC2017,0.1,W_Shortened completion ,A_Incomplete,0.9832,0.9832,0.9832,0.9832
+BPIC2017,0.1,W_Call after offers,W_Complete application,1.0000,1.0000,0.8513,0.8513
+BPIC2017,0.1,W_Shortened completion ,W_Call after offers,0.9160,0.9580,0.9053,0.9053
+BPIC2017,0.1,W_Assess potential fraud,W_Call after offers,0.9421,0.9976,0.8079,0.8079
+BPIC2017,0.1,O_Created,A_Denied,0.9141,0.9141,0.9141,0.9141
+BPIC2017,0.1,A_Complete,A_Accepted,0.9481,0.9481,0.9464,0.9464
+BPIC2017,0.1,O_Create Offer,O_Sent (mail and online),0.9162,0.9162,0.9157,0.9157
+BPIC2017,0.1,O_Created,O_Sent (mail and online),0.9162,0.9162,0.9157,0.9157
+BPIC2017,0.1,W_Handle leads,W_Complete application,1.0000,1.0000,0.9980,0.9980
+BPIC2017,0.1,W_Validate application,W_Call after offers,1.0000,1.0000,0.8887,0.8887
+BPIC2017,0.1,A_Cancelled,A_Complete,0.9895,0.9895,0.8846,0.8846
+BPIC2017,0.1,A_Submitted,A_Concept,1.0000,1.0000,0.9753,0.9753
+BPIC2017,0.1,O_Cancelled,O_Create Offer,1.0000,1.0000,0.8821,0.8821
+BPIC2017,0.1,O_Accepted,O_Returned,1.0000,1.0000,0.8274,0.8274
+BPIC2017,0.1,A_Accepted,A_Concept,1.0000,1.0000,0.8889,0.8889
+BPIC2017,0.1,O_Refused,O_Sent (mail and online),0.9572,0.9572,0.7915,0.7915
+BPIC2017,0.1,A_Denied,A_Validating,0.9550,0.9550,0.8547,0.8547
+BPIC2017,0.1,A_Pending,A_Validating,1.0000,1.0000,0.8445,0.8445
+BPIC2017,0.1,A_Concept,A_Accepted,1.0000,1.0000,0.8889,0.8889
+BPIC2017,0.1,W_Call incomplete files,W_Call after offers,1.0000,1.0000,0.8352,0.8352
+BPIC2017,0.1,W_Personal Loan collection,W_Validate application,1.0000,1.0000,0.8182,0.8182
+BPIC2017,0.1,A_Create Application,A_Accepted,1.0000,1.0000,0.8868,0.8868
+BPIC2017,0.1,O_Create Offer,A_Denied,0.9141,0.9141,0.9141,0.9141
+BPIC2017,0.1,O_Sent (mail and online),A_Denied,0.9134,0.9134,0.9134,0.9134
+BPIC2017,0.1,W_Shortened completion ,W_Complete application,1.0000,1.0000,0.9142,0.9142
+BPIC2017,0.1,W_Shortened completion ,O_Refused,0.9538,0.9916,0.8090,0.8090
+BPIC2017,0.1,A_Validating,A_Complete,1.0000,1.0000,0.8275,0.8275
+BPIC2017,0.1,W_Shortened completion ,A_Denied,0.9538,1.0000,0.8090,0.8090
+BPIC2017,0.1,W_Shortened completion ,W_Handle leads,0.9622,0.9622,0.8743,0.8743
+BPIC2017,0.1,O_Sent (mail and online),O_Created,0.9921,0.9921,0.9916,0.9916
+BPIC2017,0.1,O_Cancelled,O_Created,1.0000,1.0000,0.8821,0.8821
+BPIC2017,0.1,A_Accepted,A_Create Application,1.0000,1.0000,0.8868,0.8868
+BPIC2017,0.1,A_Incomplete,A_Validating,1.0000,1.0000,0.9043,0.9043
+BPIC2017,0.1,O_Returned,O_Sent (mail and online),0.9557,0.9557,0.8116,0.8116
+BPIC2017,0.1,O_Sent (mail and online),O_Create Offer,0.9921,0.9921,0.9916,0.9916
+BPIC2017,0.1,O_Sent (online only),O_Create Offer,0.9847,0.9847,0.9836,0.9836
+BPIC2017,0.1,O_Sent (online only),O_Created,0.9847,0.9847,0.9836,0.9836
+BPIC2017,0.1,W_Complete application,W_Call after offers,0.9930,0.9930,0.8729,0.8729
+BPIC2017,0.1,A_Accepted,A_Complete,0.9437,0.9437,0.9420,0.9420
+OrderManagement,0,send package,create package,1.0000,1.0000,0.9010,0.9010
+OrderManagement,0,reorder item,pick item,1.0000,1.0000,0.8264,0.8264
+OrderManagement,0,pick item,send package,1.0000,1.0000,0.9309,0.9309
+OrderManagement,0,place order,pick item,1.0000,0.3500,0.9824,0.3355
+OrderManagement,0,confirm order,place order,1.0000,1.0000,0.8963,0.8963
+OrderManagement,0,item out of stock,reorder item,1.0000,1.0000,0.8868,0.8868
+OrderManagement,0,failed delivery,send package,1.0000,1.0000,0.8852,0.8852
+OrderManagement,0,package delivered,send package,1.0000,1.0000,0.8766,0.8766
+OrderManagement,0,payment reminder,confirm order,1.0000,1.0000,0.9576,0.9576
+OrderManagement,0,payment reminder,pay order,1.0000,1.0000,0.8315,0.8315
+OrderManagement,0,create package,place order,1.0000,0.4774,0.9725,0.4570
+OrderManagement,0,reorder item,create package,1.0000,1.0000,0.8236,0.8236
+OrderManagement,0,send package,package delivered,1.0000,1.0000,0.8766,0.8766
+OrderManagement,0,send package,pick item,1.0000,0.2024,0.9891,0.1974
+OrderManagement,0,place order,create package,1.0000,0.6876,0.9347,0.6230
+OrderManagement,0,item out of stock,place order,1.0000,1.0000,0.8967,0.8967
+OrderManagement,0,pick item,place order,1.0000,1.0000,0.8376,0.8376
+OrderManagement,0,create package,send package,1.0000,1.0000,0.9010,0.9010
+OrderManagement,0,pay order,confirm order,1.0000,1.0000,0.8351,0.8351
+OrderManagement,0,reorder item,item out of stock,1.0000,1.0000,0.8868,0.8868
+OrderManagement,0,place order,confirm order,1.0000,1.0000,0.8963,0.8963
+OrderManagement,0,confirm order,pay order,1.0000,1.0000,0.8351,0.8351
+OrderManagement,0,failed delivery,package delivered,1.0000,1.0000,0.8867,0.8867
+OrderManagement,0.1,pick item,create package,0.9914,1.0000,0.9232,0.9232
+OrderManagement,0.1,create package,send package,1.0000,1.0000,0.9010,0.9010
+OrderManagement,0.1,failed delivery,send package,1.0000,1.0000,0.8852,0.8852
+OrderManagement,0.1,failed delivery,confirm order,0.9421,0.5026,0.9677,0.4703
+OrderManagement,0.1,confirm order,send package,0.9335,0.6876,0.9304,0.6195
+OrderManagement,0.1,item out of stock,reorder item,1.0000,1.0000,0.8868,0.8868
+OrderManagement,0.1,package delivered,confirm order,0.9424,0.4774,0.9738,0.4577
+OrderManagement,0.1,payment reminder,confirm order,1.0000,1.0000,0.9576,0.9576
+OrderManagement,0.1,confirm order,pay order,1.0000,1.0000,0.8351,0.8351
+OrderManagement,0.1,pick item,place order,1.0000,1.0000,0.8376,0.8376
+OrderManagement,0.1,place order,confirm order,1.0000,1.0000,0.8963,0.8963
+OrderManagement,0.1,place order,pick item,1.0000,0.3500,0.9824,0.3355
+OrderManagement,0.1,reorder item,pick item,1.0000,1.0000,0.8264,0.8264
+OrderManagement,0.1,item out of stock,place order,1.0000,1.0000,0.8967,0.8967
+OrderManagement,0.1,confirm order,place order,1.0000,1.0000,0.8963,0.8963
+OrderManagement,0.1,create package,pick item,0.9415,0.2024,0.9864,0.1965
+OrderManagement,0.1,reorder item,item out of stock,1.0000,1.0000,0.8868,0.8868
+OrderManagement,0.1,failed delivery,package delivered,1.0000,1.0000,0.8867,0.8867
+OrderManagement,0.1,package delivered,send package,1.0000,1.0000,0.8766,0.8766
+OrderManagement,0.1,item out of stock,pay order,0.9003,1.0000,0.7926,0.7926
+OrderManagement,0.1,send package,create package,1.0000,1.0000,0.9010,0.9010
+OrderManagement,0.1,pay order,confirm order,1.0000,1.0000,0.8351,0.8351
+OrderManagement,0.1,send package,package delivered,1.0000,1.0000,0.8766,0.8766
+OrderManagement,0.1,payment reminder,pay order,1.0000,1.0000,0.8315,0.8315
