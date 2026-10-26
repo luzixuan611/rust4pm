@@ -96,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut writer = BufWriter::new(csv_file);
     writeln!(
         writer,
-        "dataset,noise,from_event,to_event,std_score,object_score,temporal_score,combined_score"
+        "dataset,noise,from_event,to_event,arc_type,counts,label,std_score,object_score,temporal_score,combined_score"
     )?;
 
     for (name, log_path) in event_logs {
@@ -114,7 +114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let linked_ocel = SlimLinkedOCEL::from(ocel);
         //go through noise threshholds
-        let noise_thresholds = vec![0.0, 0.1];
+        let noise_thresholds = vec![0.0,0.1];
 
         for noise in noise_thresholds {
             println!(
@@ -163,10 +163,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let fine_score = scores.combined_score;
 
                 if i < 5 {
+                //if name == "OrderManagement" && noise == 0.0 {
                     println!(
-                        "Rule: {} -> {} | Std: {:.4} | Obj: {:.4} | Time: {:.4} | Combined: {:.4}",
+                       "Rule: {} -> {} | Arc: {:?} | Counts: {:?} | Label: {:?} | Std: {:.4} | Obj: {:.4} | Time: {:.4} | Combined: {:.4}",
                         from_act,
                         to_act,
+                        &rule.arc_type,
+                        &rule.counts,
+                        &rule.label,
                         std_score,
                         scores.object_score,
                         scores.temporal_score,
@@ -175,13 +179,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 // write results to CSV
+                let arc_type = format!("{:?}", &rule.arc_type);
+                let counts = format!("{:?}", &rule.counts);
+                let label = format!("{:?}", &rule.label).replace('"', "\"\"");
                 writeln!(
                     writer,
-                    "{},{},{},{},{:.4},{:.4},{:.4},{:.4}",
+                    "{},{},{},{},\"{}\",\"{}\",\"{}\",{:.4},{:.4},{:.4},{:.4}",
                     name,
                     noise,
                     from_act,
                     to_act,
+                    arc_type,
+                    counts,
+                    label,
                     std_score,
                     scores.object_score,
                     scores.temporal_score,

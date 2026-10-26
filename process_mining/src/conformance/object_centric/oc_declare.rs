@@ -365,9 +365,10 @@ pub(crate) fn event_fine_grained_score_components(
     view: Option<E2ORevTypeView<'_>>,
 ) -> FineGrainedScores {
     let from_time = ev_index.get_timestamp(linked_ocel);
-    let mut best_object_score: f64 = 0.0;
-    let mut temporal_score_of_best_combined: f64 = 0.0;
-    let mut best_combined_score: f64 = 0.0;
+    let mut total_object_score: f64 = 0.0;
+    let mut total_temporal_score: f64 = 0.0;
+    let mut total_combined_score: f64 = 0.0;
+    let mut matched_bindings: f64 = 0.0;
     let bindings: Vec<_> = label.get_bindings(ev_index, linked_ocel).collect();
     let total_bindings = bindings.len() as f64;
 
@@ -379,51 +380,59 @@ pub(crate) fn event_fine_grained_score_components(
         };
     }
 
-    use std::collections::HashSet;
-    let mut candidate_evs = HashSet::new();
-
     for binding in &bindings {
+        let mut has_valid_target = false;
+        let mut best_time_score = 0.0;
+
         for ev2 in target_events_for_binding(binding, linked_ocel, to_et, view) {
-            candidate_evs.insert(ev2);
-        }
-    }
+            let to_time = ev2.get_timestamp(linked_ocel);
 
-    for ev2 in candidate_evs {
-        let to_time = ev2.get_timestamp(linked_ocel);
+            let in_correct_direction = match arc_type {
+            OCDeclareArcType::EF => from_time < to_time,
+            OCDeclareArcType::EP => from_time > to_time,
+            OCDeclareArcType::AS => true,
+            _ => false,
+            };
 
-        let score_time =
-            calculate_pair_time_score(&from_time, &to_time, arc_type, interval);
+            if !in_correct_direction {
+            continue;
+         }
 
-        let mut matched_count = 0.0;
-        for binding in &bindings {
-            let mut target_evs =
-                target_events_for_binding(binding, linked_ocel, to_et, view);
+            has_valid_target = true;
 
-            if target_evs.any(|e| e == ev2) {
-                matched_count += 1.0;
+         let time_score = calculate_pair_time_score(
+            &from_time,
+            &to_time,
+            arc_type,
+            interval,
+            );
+
+            if time_score > best_time_score {
+            best_time_score = time_score;
+                }
+                }
+
+                if has_valid_target {
+                 // This binding has a valid target, so its hard object requirement is fulfilled.
+                    total_object_score += 1.0;
+                    total_temporal_score += best_time_score;
+                    matched_bindings += 1.0;
+                } 
             }
-        }
 
-        let score_obj = matched_count / total_bindings;
-        let score_joint = score_obj * score_time;
+            let object_score = total_object_score / total_bindings;
 
-        // best candidate at object level
-        if score_obj > best_object_score {
-            best_object_score = score_obj;
-        }
+            let temporal_score = if matched_bindings > 0.0 {
+                total_temporal_score / matched_bindings
+            } else {
+                0.0
+            };
 
-        // obj x temporal and keep highest combined score
-        if score_joint > best_combined_score {
-            best_combined_score = score_joint;
-            temporal_score_of_best_combined = score_time;
-        }
-    }
-
-    FineGrainedScores {
-        object_score: best_object_score,
-        temporal_score: temporal_score_of_best_combined,
-        combined_score: best_combined_score,
-    }
+            FineGrainedScores {
+                object_score,
+                temporal_score,
+                combined_score: object_score * temporal_score,
+            }
 }
 
 //separate score
