@@ -90,6 +90,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "OrderManagement",
         PathBuf::from("/Users/zixuanlu/Desktop/dataset/order-management.json"),
     ),
+    (
+        "BPIC19",
+        PathBuf::from("/Users/zixuanlu/Desktop/dataset/BPIC19.jsonocel-OCEL2.xml"),
+    ),
     ];
 
     let csv_file = File::create("conformance_scores.csv")?;
@@ -114,7 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let linked_ocel = SlimLinkedOCEL::from(ocel);
         //go through noise threshholds
-        let noise_thresholds = vec![0.0,0.1];
+        let noise_thresholds = vec![0.0,0.1,0.2];
 
         for noise in noise_thresholds {
             println!(
