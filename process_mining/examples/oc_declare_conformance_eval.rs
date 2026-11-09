@@ -1,7 +1,8 @@
 use process_mining::core::process_models::oc_declare::{OCDeclareArcType, ObjectTypeAssociation};
 use process_mining::{
     conformance::object_centric::oc_declare::{
-        discover_time_interval, evaluate_arc_conformance, oc_declare_conformance, evaluate_arc_score_components,
+        discover_time_interval, evaluate_arc_conformance, evaluate_arc_score_components,
+        oc_declare_conformance,
     },
     core::event_data::object_centric::linked_ocel::SlimLinkedOCEL,
     core::process_models::oc_declare::OCDeclareArcLabel,
@@ -90,10 +91,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "OrderManagement",
         PathBuf::from("/Users/zixuanlu/Desktop/dataset/order-management.json"),
     ),
-    (
+    /*(
         "BPIC19",
         PathBuf::from("/Users/zixuanlu/Desktop/dataset/BPIC19.jsonocel-OCEL2.xml"),
-    ),
+    ),*/
     ];
 
     let csv_file = File::create("conformance_scores.csv")?;
@@ -118,7 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let linked_ocel = SlimLinkedOCEL::from(ocel);
         //go through noise threshholds
-        let noise_thresholds = vec![0.0,0.1,0.2];
+        let noise_thresholds = vec![0.0, 0.1, 0.2];
 
         for noise in noise_thresholds {
             println!(
@@ -167,7 +168,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let fine_score = scores.combined_score;
 
                 if i < 5 {
-                //if name == "OrderManagement" && noise == 0.0 {
+                    //if name == "OrderManagement" && noise == 0.0 {
                     println!(
                        "Rule: {} -> {} | Arc: {:?} | Counts: {:?} | Label: {:?} | Std: {:.4} | Obj: {:.4} | Time: {:.4} | Combined: {:.4}",
                         from_act,

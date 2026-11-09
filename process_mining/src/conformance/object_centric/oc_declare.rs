@@ -77,6 +77,43 @@ pub(crate) fn target_events_for_binding<'a>(
         true
     })
 }
+///new add
+/// Get target events of `etype` that share at least one object mentioned by a binding.
+///
+/// Unlike `target_events_for_binding`, this does not require a candidate to
+/// satisfy the complete binding. Soft scoring must also consider partially
+/// matching candidates.
+fn related_target_events_for_binding(
+    binding: &[SetFilter<&ObjectIndex>],
+    linked_ocel: &SlimLinkedOCEL,
+    etype: &str,
+    view: Option<E2ORevTypeView<'_>>,
+) -> FxHashSet<EventOrSynthetic> {
+    let mut candidates = FxHashSet::default();
+
+    for filter in binding {
+        let objects = match filter {
+            SetFilter::Any(objects) | SetFilter::All(objects) => objects,
+        };
+
+        for object in objects {
+            match view {
+                Some(view) => {
+                    candidates.extend(view.events_of(**object).map(EventOrSynthetic::Event));
+                }
+                None => {
+                    candidates.extend(EventOrSynthetic::get_all_of_et_for_ob(
+                        linked_ocel,
+                        etype,
+                        **object,
+                    ));
+                }
+            }
+        }
+    }
+
+    candidates
+}
 
 fn directly_adjacent_event<'a>(
     objs: &'a [SetFilter<&'a ObjectIndex>],
@@ -180,6 +217,51 @@ fn calculate_pair_time_score(
     };
 
     inter.evaluate_deviation(relative_duration)
+}
+
+/// Score the object coverage of one candidate target for a binding.
+///
+/// All concrete objects currently have equal weight. For an `All` filter,
+/// this returns the fraction of required objects present in the candidate.
+/// For an `Any` filter, it returns 1 if at least one required object is present.
+fn candidate_object_coverage(
+    binding: &[SetFilter<&ObjectIndex>],
+    candidate: &EventOrSynthetic,
+    linked_ocel: &SlimLinkedOCEL,
+) -> f64 {
+    let candidate_objects = candidate.get_e2o_set(linked_ocel);
+    let mut matched_weight = 0.0;
+    let mut total_weight = 0.0;
+
+    for filter in binding {
+        match filter {
+            SetFilter::All(objects) => {
+                total_weight += objects.len() as f64;
+                matched_weight += objects
+                    .iter()
+                    .filter(|object| candidate_objects.contains(*object))
+                    .count() as f64;
+            }
+            SetFilter::Any(objects) => {
+                // ANY is one logical requirement, even if the source has
+                // several objects of that type.
+                total_weight += 1.0;
+
+                if objects
+                    .iter()
+                    .any(|object| candidate_objects.contains(object))
+                {
+                    matched_weight += 1.0;
+                }
+            }
+        }
+    }
+
+    if total_weight == 0.0 {
+        1.0
+    } else {
+        matched_weight / total_weight
+    }
 }
 
 /// compute fine-grained conformance score for a single activated event e_s: Score(e_s) = max_{e_t} (Score_obj * Score_time)
@@ -354,7 +436,7 @@ pub fn discover_time_interval(
         max_duration: Some(Duration::seconds(max_sec)),
     })
 }
-
+// new
 pub(crate) fn event_fine_grained_score_components(
     ev_index: &EventOrSynthetic,
     label: &OCDeclareArcLabel,
@@ -365,10 +447,6 @@ pub(crate) fn event_fine_grained_score_components(
     view: Option<E2ORevTypeView<'_>>,
 ) -> FineGrainedScores {
     let from_time = ev_index.get_timestamp(linked_ocel);
-    let mut total_object_score: f64 = 0.0;
-    let mut total_temporal_score: f64 = 0.0;
-    let mut total_combined_score: f64 = 0.0;
-    let mut matched_bindings: f64 = 0.0;
     let bindings: Vec<_> = label.get_bindings(ev_index, linked_ocel).collect();
     let total_bindings = bindings.len() as f64;
 
@@ -380,59 +458,70 @@ pub(crate) fn event_fine_grained_score_components(
         };
     }
 
-    for binding in &bindings {
-        let mut has_valid_target = false;
-        let mut best_time_score = 0.0;
+    let mut total_object_score = 0.0;
+    let mut total_temporal_score = 0.0;
+    let mut matched_bindings = 0.0;
 
-        for ev2 in target_events_for_binding(binding, linked_ocel, to_et, view) {
-            let to_time = ev2.get_timestamp(linked_ocel);
+    for binding in &bindings {
+        let mut best_scores: Option<FineGrainedScores> = None;
+
+        // Candidate targets only need to share at least one relevant object.
+        // Full vs. partial fulfilment is handled by candidate_object_coverage.
+        for candidate in related_target_events_for_binding(binding, linked_ocel, to_et, view) {
+            let to_time = candidate.get_timestamp(linked_ocel);
 
             let in_correct_direction = match arc_type {
-            OCDeclareArcType::EF => from_time < to_time,
-            OCDeclareArcType::EP => from_time > to_time,
-            OCDeclareArcType::AS => true,
-            _ => false,
+                OCDeclareArcType::EF => from_time < to_time,
+                OCDeclareArcType::EP => from_time > to_time,
+                OCDeclareArcType::AS => true,
+                _ => false,
             };
 
             if !in_correct_direction {
-            continue;
-         }
-
-            has_valid_target = true;
-
-         let time_score = calculate_pair_time_score(
-            &from_time,
-            &to_time,
-            arc_type,
-            interval,
-            );
-
-            if time_score > best_time_score {
-            best_time_score = time_score;
-                }
-                }
-
-                if has_valid_target {
-                 // This binding has a valid target, so its hard object requirement is fulfilled.
-                    total_object_score += 1.0;
-                    total_temporal_score += best_time_score;
-                    matched_bindings += 1.0;
-                } 
+                continue;
             }
 
-            let object_score = total_object_score / total_bindings;
+            let object_score = candidate_object_coverage(binding, &candidate, linked_ocel);
 
-            let temporal_score = if matched_bindings > 0.0 {
-                total_temporal_score / matched_bindings
-            } else {
-                0.0
-            };
+            let temporal_score =
+                calculate_pair_time_score(&from_time, &to_time, arc_type, interval);
 
-            FineGrainedScores {
+            let scores = FineGrainedScores {
                 object_score,
                 temporal_score,
                 combined_score: object_score * temporal_score,
+            };
+
+            let is_better = match &best_scores {
+                None => true,
+                Some(best) => scores.combined_score > best.combined_score,
+            };
+
+            if is_better {
+                best_scores = Some(scores);
             }
+        }
+
+        if let Some(scores) = best_scores {
+            total_object_score += scores.object_score;
+            total_temporal_score += scores.temporal_score;
+            matched_bindings += 1.0;
+        }
+    }
+
+    let object_score = total_object_score / total_bindings;
+
+    let temporal_score = if matched_bindings > 0.0 {
+        total_temporal_score / matched_bindings
+    } else {
+        0.0
+    };
+
+    FineGrainedScores {
+        object_score,
+        temporal_score,
+        combined_score: object_score * temporal_score,
+    }
 }
 
 //separate score
@@ -442,7 +531,6 @@ pub struct FineGrainedScores {
     pub combined_score: f64,
 }
 
-
 pub fn evaluate_arc_score_components(
     from_et: &str,
     to_et: &str,
@@ -451,16 +539,16 @@ pub fn evaluate_arc_score_components(
     linked_ocel: &SlimLinkedOCEL,
 ) -> FineGrainedScores {
     let interval = discover_time_interval(from_et, to_et, label, arc_type, linked_ocel);
-    
+
     arc_fine_grained_score_components(
-    from_et,
-    to_et,
-    label,
-    &interval,
-    arc_type,
-    linked_ocel,
-    None,
-)
+        from_et,
+        to_et,
+        label,
+        &interval,
+        arc_type,
+        linked_ocel,
+        None,
+    )
 }
 
 pub fn evaluate_arc_conformance(
@@ -521,7 +609,6 @@ pub fn arc_fine_grained_score_components(
     }
 }
 
-
 pub fn arc_fine_grained_conformance(
     from_et: &str,
     to_et: &str,
@@ -539,7 +626,8 @@ pub fn arc_fine_grained_conformance(
         arc_type,
         linked_ocel,
         index,
-    ).combined_score
+    )
+    .combined_score
 }
 
 /// Checks whether the number of events violating this constraint arc is below (<=) the given noise threshold
@@ -771,6 +859,109 @@ mod tests {
         s
     }
 
+    /// One source event with three items and two partial target candidates.
+    ///
+    /// target e1 covers {i1}; target e2 covers {i2, i3}.
+    /// This lets us distinguish ALL from EACH soft scoring.
+    fn partial_all_locel() -> SlimLinkedOCEL {
+        let mut s = SlimLinkedOCEL::new();
+
+        for event_type in ["place", "ship"] {
+            s.declare_event_type(empty_type(event_type)).unwrap();
+        }
+
+        s.declare_object_type(empty_type("item")).unwrap();
+
+        for item in ["i1", "i2", "i3"] {
+            s.append_object(item.into(), "item", Vec::new(), Vec::new())
+                .unwrap();
+        }
+
+        let events = [
+            ("e0", "place", vec!["i1", "i2", "i3"]),
+            ("e1", "ship", vec!["i1"]),
+            ("e2", "ship", vec!["i2", "i3"]),
+        ];
+
+        for (day, (id, event_type, objects)) in events.iter().enumerate() {
+            let time =
+                DateTime::parse_from_rfc3339(&format!("2024-02-0{}T00:00:00Z", day + 1)).unwrap();
+
+            s.append_event(
+                (*id).into(),
+                event_type,
+                time,
+                Vec::new(),
+                objects
+                    .iter()
+                    .map(|object| OCELRelationship {
+                        object_id: (*object).into(),
+                        qualifier: "q".into(),
+                    })
+                    .collect(),
+            )
+            .unwrap();
+        }
+
+        s.finalize().unwrap();
+        s
+    }
+    #[test]
+    fn candidate_based_scoring_distinguishes_all_from_each() {
+        let locel = partial_all_locel();
+
+        let source = EventOrSynthetic::Event(*locel.get_evs_of_type("place").next().unwrap());
+
+        // No interval: both candidates receive temporal score 1.0, so the
+        // selection is determined only by their object coverage.
+        let interval: Option<TimeInterval> = None;
+
+        let item = ObjectTypeAssociation::new_simple("item");
+
+        let all_label = OCDeclareArcLabel {
+            each: vec![],
+            any: vec![],
+            all: vec![item.clone()],
+        };
+
+        let all_scores = event_fine_grained_score_components(
+            &source,
+            &all_label,
+            "ship",
+            &interval,
+            OCDeclareArcType::EF,
+            &locel,
+            None,
+        );
+
+        // No single ship event contains all three items. The best candidate
+        // contains {i2, i3}, so it covers two out of three required items.
+        assert!((all_scores.object_score - 2.0 / 3.0).abs() < 1e-9);
+        assert!((all_scores.temporal_score - 1.0).abs() < 1e-9);
+        assert!((all_scores.combined_score - 2.0 / 3.0).abs() < 1e-9);
+
+        let each_label = OCDeclareArcLabel {
+            each: vec![item],
+            any: vec![],
+            all: vec![],
+        };
+
+        let each_scores = event_fine_grained_score_components(
+            &source,
+            &each_label,
+            "ship",
+            &interval,
+            OCDeclareArcType::EF,
+            &locel,
+            None,
+        );
+
+        // EACH may use e1 for i1 and e2 for i2/i3, so every binding is fulfilled.
+        assert!((each_scores.object_score - 1.0).abs() < 1e-9);
+        assert!((each_scores.temporal_score - 1.0).abs() < 1e-9);
+        assert!((each_scores.combined_score - 1.0).abs() < 1e-9);
+    }
+
     /// Checking with and without the index must agree, across arc types/labels/counts
     #[test]
     fn constraint_checks_agree_with_and_without_index() {
@@ -898,8 +1089,15 @@ mod tests {
         });
 
         // 3. fine-grained conformance score for "place" -> "ship" with the label and interval
-        let score =
-            arc_fine_grained_conformance("place", "ship", &label, &interval, &locel, Some(&index));
+        let score = arc_fine_grained_conformance(
+            "place",
+            "ship",
+            &label,
+            &interval,
+            OCDeclareArcType::EF,
+            &locel,
+            Some(&index),
+        );
 
         println!("\n==========================================");
         println!("Calculated Fine-grained Score: {:.4}", score);
