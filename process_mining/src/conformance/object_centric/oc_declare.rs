@@ -494,7 +494,13 @@ pub(crate) fn event_fine_grained_score_components(
 
             let is_better = match &best_scores {
                 None => true,
-                Some(best) => scores.combined_score > best.combined_score,
+                Some(best) => {
+                    const EPSILON: f64 = 1e-12;
+
+                    scores.object_score > best.object_score + EPSILON
+                        || ((scores.object_score - best.object_score).abs() <= EPSILON
+                            && scores.temporal_score > best.temporal_score)
+                }
             };
 
             if is_better {
@@ -906,6 +912,60 @@ mod tests {
         s.finalize().unwrap();
         s
     }
+
+    /// One source event with a fast partial target and a slower complete target.
+    ///
+    /// The partial target covers {i1, i2} within the interval.
+    /// The complete target covers {i1, i2, i3}, but is outside the interval.
+    /// The complete object fulfilment must be preferred.
+    fn complete_candidate_beats_faster_partial_locel() -> SlimLinkedOCEL {
+        let mut s = SlimLinkedOCEL::new();
+
+        for event_type in ["place", "ship"] {
+            s.declare_event_type(empty_type(event_type)).unwrap();
+        }
+
+        s.declare_object_type(empty_type("item")).unwrap();
+
+        for item in ["i1", "i2", "i3"] {
+            s.append_object(item.into(), "item", Vec::new(), Vec::new())
+                .unwrap();
+        }
+
+        let events = [
+            (
+                "e0",
+                "place",
+                vec!["i1", "i2", "i3"],
+                "2024-03-01T00:00:00Z",
+            ),
+            ("e1", "ship", vec!["i1", "i2"], "2024-03-02T00:00:00Z"),
+            ("e2", "ship", vec!["i1", "i2", "i3"], "2024-03-04T00:00:00Z"),
+        ];
+
+        for (id, event_type, objects, timestamp) in events {
+            let time = DateTime::parse_from_rfc3339(timestamp).unwrap();
+
+            s.append_event(
+                id.into(),
+                event_type,
+                time,
+                Vec::new(),
+                objects
+                    .iter()
+                    .map(|object| OCELRelationship {
+                        object_id: (*object).into(),
+                        qualifier: "q".into(),
+                    })
+                    .collect(),
+            )
+            .unwrap();
+        }
+
+        s.finalize().unwrap();
+        s
+    }
+
     #[test]
     fn candidate_based_scoring_distinguishes_all_from_each() {
         let locel = partial_all_locel();
@@ -960,6 +1020,44 @@ mod tests {
         assert!((each_scores.object_score - 1.0).abs() < 1e-9);
         assert!((each_scores.temporal_score - 1.0).abs() < 1e-9);
         assert!((each_scores.combined_score - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn complete_candidate_is_preferred_over_faster_partial_candidate() {
+        let locel = complete_candidate_beats_faster_partial_locel();
+
+        let source = EventOrSynthetic::Event(*locel.get_evs_of_type("place").next().unwrap());
+
+        let item = ObjectTypeAssociation::new_simple("item");
+        let label = OCDeclareArcLabel {
+            each: vec![],
+            any: vec![],
+            all: vec![item],
+        };
+
+        // The partial target is one day later: Time = 1.0.
+        // The complete target is three days later. With a one-day maximum,
+        // it is two days outside the interval: Time = 0.25.
+        let interval = Some(TimeInterval {
+            min_duration: Some(chrono::Duration::zero()),
+            max_duration: Some(chrono::Duration::days(1)),
+        });
+
+        let scores = event_fine_grained_score_components(
+            &source,
+            &label,
+            "ship",
+            &interval,
+            OCDeclareArcType::EF,
+            &locel,
+            None,
+        );
+
+        // A complete candidate exists, so it must be selected before the
+        // temporally better partial candidate.
+        assert!((scores.object_score - 1.0).abs() < 1e-9);
+        assert!((scores.temporal_score - 0.25).abs() < 1e-9);
+        assert!((scores.combined_score - 0.25).abs() < 1e-9);
     }
 
     /// Checking with and without the index must agree, across arc types/labels/counts
