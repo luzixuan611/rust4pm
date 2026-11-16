@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut writer = BufWriter::new(csv_file);
     writeln!(
         writer,
-        "dataset,noise,from_event,to_event,arc_type,counts,label,std_score,object_score,temporal_score,combined_score"
+        "dataset,noise,from_event,to_event,arc_type,counts,label,time_lower_bound_seconds,time_upper_bound_seconds,std_score,object_score,temporal_score,combined_score"
     )?;
 
     for (name, log_path) in event_logs {
@@ -157,6 +157,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let std_score = oc_declare_conformance(&linked_ocel, rule);
 
+                let interval = discover_time_interval(
+                    from_act,
+                    to_act,
+                    &rule.label,
+                    rule.arc_type,
+                    &linked_ocel,
+                );
+
+                let (lower_bound_seconds, upper_bound_seconds) = match &interval {
+                    Some(interval) => (
+                        interval
+                            .min_duration
+                            .map(|duration| duration.num_seconds().to_string())
+                            .unwrap_or_default(),
+                        interval
+                            .max_duration
+                            .map(|duration| duration.num_seconds().to_string())
+                            .unwrap_or_default(),
+                    ),
+                    None => (String::new(), String::new()),
+                };
+
                 let scores = evaluate_arc_score_components(
                     from_act,
                     to_act,
@@ -189,7 +211,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let label = format!("{:?}", &rule.label).replace('"', "\"\"");
                 writeln!(
                     writer,
-                    "{},{},{},{},\"{}\",\"{}\",\"{}\",{:.4},{:.4},{:.4},{:.4}",
+                    "{},{},{},{},\"{}\",\"{}\",\"{}\",{},{},{:.4},{:.4},{:.4},{:.4}",
                     name,
                     noise,
                     from_act,
@@ -197,6 +219,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     arc_type,
                     counts,
                     label,
+                    lower_bound_seconds,
+                    upper_bound_seconds,
                     std_score,
                     scores.object_score,
                     scores.temporal_score,
