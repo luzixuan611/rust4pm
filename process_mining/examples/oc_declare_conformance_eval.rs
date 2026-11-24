@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut writer = BufWriter::new(csv_file);
     writeln!(
         writer,
-        "dataset,noise,from_event,to_event,arc_type,counts,label,time_lower_bound_seconds,time_upper_bound_seconds,std_score,object_score,temporal_score,combined_score"
+        "dataset,noise,from_event,to_event,arc_type,counts,label,time_lower_bound_seconds,time_upper_bound_seconds,std_score,object_score,combined_candidate_object_score,combined_candidate_temporal_score,combined_score"
     )?;
 
     for (name, log_path) in event_logs {
@@ -192,7 +192,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if i < 5 {
                     //if name == "OrderManagement" && noise == 0.0 {
                     println!(
-                       "Rule: {} -> {} | Arc: {:?} | Counts: {:?} | Label: {:?} | Std: {:.4} | Obj: {:.4} | Time: {:.4} | Combined: {:.4}",
+                       "Rule: {} -> {} | Arc: {:?} | Counts: {:?} | Label: {:?} | Std: {:.4} | Best Obj: {:.4} | Combined Candidate Obj: {:.4} | Combined Candidate Time: {:.4} | Combined: {:.4}",
                         from_act,
                         to_act,
                         &rule.arc_type,
@@ -200,7 +200,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &rule.label,
                         std_score,
                         scores.object_score,
-                        scores.temporal_score,
+                        scores.combined_candidate_object_score,
+                        scores.combined_candidate_temporal_score,
                         scores.combined_score,
                     );
                 }
@@ -211,7 +212,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let label = format!("{:?}", &rule.label).replace('"', "\"\"");
                 writeln!(
                     writer,
-                    "{},{},{},{},\"{}\",\"{}\",\"{}\",{},{},{:.4},{:.4},{:.4},{:.4}",
+                    "{},{},{},{},\"{}\",\"{}\",\"{}\",{},{},{:.4},{:.4},{:.4},{:.4},{:.4}",
                     name,
                     noise,
                     from_act,
@@ -223,7 +224,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     upper_bound_seconds,
                     std_score,
                     scores.object_score,
-                    scores.temporal_score,
+                    scores.combined_candidate_object_score,
+                    scores.combined_candidate_temporal_score,
                     fine_score,
                 )?;
             }

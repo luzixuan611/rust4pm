@@ -210,9 +210,7 @@ fn calculate_pair_time_score(
     let raw_duration = to_time.signed_duration_since(*from_time);
 
     let relative_duration = match arc_type {
-        OCDeclareArcType::EF => raw_duration,
-        OCDeclareArcType::EP => -raw_duration,
-        OCDeclareArcType::AS => return 1.0,
+        OCDeclareArcType::EF | OCDeclareArcType::EP | OCDeclareArcType::AS => raw_duration,
         _ => return 1.0,
     };
 
@@ -355,8 +353,9 @@ pub fn discover_time_interval(
             })
             .collect();
 
-        // EF：take earliest target
-        // EP：take latest target
+        // EF: take earliest later target
+        // EP: take latest earlier target
+        // AS: take temporally closest target, regardless of direction
         let selected_target = match arc_type {
             OCDeclareArcType::EF => full_candidates
                 .into_iter()
@@ -368,23 +367,26 @@ pub fn discover_time_interval(
                 .filter(|target| target.get_timestamp(linked_ocel) < *t_s)
                 .max_by_key(|target| target.get_timestamp(linked_ocel)),
 
-            OCDeclareArcType::AS => return None,
+            OCDeclareArcType::AS => full_candidates.into_iter().min_by_key(|target| {
+                target
+                    .get_timestamp(linked_ocel)
+                    .signed_duration_since(*t_s)
+                    .num_seconds()
+                    .abs()
+            }),
             _ => return None,
         };
 
         if let Some(target) = selected_target {
-            let raw_diff = target
+            let diff = target
                 .get_timestamp(linked_ocel)
                 .signed_duration_since(*t_s)
                 .num_seconds();
 
-            let diff = match arc_type {
-                OCDeclareArcType::EF => raw_diff,
-                OCDeclareArcType::EP => -raw_diff,
-                _ => unreachable!(),
-            };
-
-            if diff > 0 {
+            if (arc_type == OCDeclareArcType::EF && diff > 0)
+                || (arc_type == OCDeclareArcType::EP && diff < 0)
+                || arc_type == OCDeclareArcType::AS
+            {
                 deltas_sec.push(diff as f64);
             }
         }
@@ -421,18 +423,18 @@ pub fn discover_time_interval(
         return None;
     }
 
-    // 3. calculate the 5th and 80th percentiles of the positive time differences
+    // 3. calculate the 5th and 80th percentiles of the observed time differences
     deltas_sec.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let n = deltas_sec.len();
 
     let p5_idx = ((n as f64 * 0.05).floor() as usize).min(n - 1);
     let p80_idx = ((n as f64 * 0.80).floor() as usize).min(n - 1);
 
-    let min_sec = deltas_sec[p5_idx].max(0.0) as i64;
-    let max_sec = deltas_sec[p80_idx].max(0.0) as i64;
+    let min_sec = deltas_sec[p5_idx] as i64;
+    let max_sec = deltas_sec[p80_idx] as i64;
 
     Some(TimeInterval {
-        min_duration: Some(Duration::zero()),
+        min_duration: Some(Duration::seconds(min_sec)),
         max_duration: Some(Duration::seconds(max_sec)),
     })
 }
@@ -453,17 +455,20 @@ pub(crate) fn event_fine_grained_score_components(
     if total_bindings == 0.0 {
         return FineGrainedScores {
             object_score: 1.0,
-            temporal_score: 1.0,
+            combined_candidate_object_score: 1.0,
+            combined_candidate_temporal_score: 1.0,
             combined_score: 1.0,
         };
     }
 
-    let mut total_object_score = 0.0;
-    let mut total_temporal_score = 0.0;
-    let mut matched_bindings = 0.0;
+    let mut total_best_object_score = 0.0;
+    let mut total_combined_candidate_object_score = 0.0;
+    let mut total_combined_candidate_temporal_score = 0.0;
+    let mut total_combined_score = 0.0;
 
     for binding in &bindings {
-        let mut best_scores: Option<FineGrainedScores> = None;
+        let mut best_object_score: f64 = 0.0;
+        let mut best_combined: Option<(f64, f64, f64)> = None;
 
         // Candidate targets only need to share at least one relevant object.
         // Full vs. partial fulfilment is handled by candidate_object_coverage.
@@ -481,59 +486,62 @@ pub(crate) fn event_fine_grained_score_components(
                 continue;
             }
 
-            let object_score = candidate_object_coverage(binding, &candidate, linked_ocel);
-
-            let temporal_score =
+            let candidate_object_score =
+                candidate_object_coverage(binding, &candidate, linked_ocel);
+            let candidate_temporal_score =
                 calculate_pair_time_score(&from_time, &to_time, arc_type, interval);
+            let candidate_combined_score = candidate_object_score * candidate_temporal_score;
 
-            let scores = FineGrainedScores {
-                object_score,
-                temporal_score,
-                combined_score: object_score * temporal_score,
-            };
+            // Independent, most lenient object score.
+            best_object_score = best_object_score.max(candidate_object_score);
 
-            let is_better = match &best_scores {
+            // Best product must still come from one real candidate.
+            let is_better = match &best_combined {
                 None => true,
-                Some(best) => {
-                    const EPSILON: f64 = 1e-12;
-
-                    scores.object_score > best.object_score + EPSILON
-                        || ((scores.object_score - best.object_score).abs() <= EPSILON
-                            && scores.temporal_score > best.temporal_score)
-                }
+                Some((_, _, best_score)) => candidate_combined_score > *best_score,
             };
 
             if is_better {
-                best_scores = Some(scores);
+                best_combined = Some((
+                    candidate_object_score,
+                    candidate_temporal_score,
+                    candidate_combined_score,
+                ));
             }
         }
 
-        if let Some(scores) = best_scores {
-            total_object_score += scores.object_score;
-            total_temporal_score += scores.temporal_score;
-            matched_bindings += 1.0;
+        total_best_object_score += best_object_score;
+
+        if let Some((
+            combined_candidate_object_score,
+            combined_candidate_temporal_score,
+            combined_score,
+        )) = best_combined
+        {
+            total_combined_candidate_object_score += combined_candidate_object_score;
+            total_combined_candidate_temporal_score += combined_candidate_temporal_score;
+            total_combined_score += combined_score;
         }
     }
 
-    let object_score = total_object_score / total_bindings;
-
-    let temporal_score = if matched_bindings > 0.0 {
-        total_temporal_score / matched_bindings
-    } else {
-        0.0
-    };
-
     FineGrainedScores {
-        object_score,
-        temporal_score,
-        combined_score: object_score * temporal_score,
+        object_score: total_best_object_score / total_bindings,
+        combined_candidate_object_score: total_combined_candidate_object_score / total_bindings,
+        combined_candidate_temporal_score: total_combined_candidate_temporal_score / total_bindings,
+        combined_score: total_combined_score / total_bindings,
     }
 }
 
 //separate score
 pub struct FineGrainedScores {
+    // Best object coverage among all candidate targets.
     pub object_score: f64,
-    pub temporal_score: f64,
+
+    // Components of the candidate that maximises Obj × Time.
+    pub combined_candidate_object_score: f64,
+    pub combined_candidate_temporal_score: f64,
+
+    // Maximum candidate-wise product.
     pub combined_score: f64,
 }
 
@@ -583,15 +591,16 @@ pub fn arc_fine_grained_score_components(
     if ev_count == 0 {
         return FineGrainedScores {
             object_score: 1.0,
-            temporal_score: 1.0,
+            combined_candidate_object_score: 1.0,
+            combined_candidate_temporal_score: 1.0,
             combined_score: 1.0,
         };
     }
 
     let mut total_object_score = 0.0;
-    let mut total_temporal_score = 0.0;
+    let mut total_combined_candidate_object_score = 0.0;
+    let mut total_combined_candidate_temporal_score = 0.0;
     let mut total_combined_score = 0.0;
-
     for ev in &evs {
         let scores = event_fine_grained_score_components(
             ev,
@@ -604,13 +613,16 @@ pub fn arc_fine_grained_score_components(
         );
 
         total_object_score += scores.object_score;
-        total_temporal_score += scores.temporal_score;
+        total_combined_candidate_object_score += scores.combined_candidate_object_score;
+        total_combined_candidate_temporal_score += scores.combined_candidate_temporal_score;
         total_combined_score += scores.combined_score;
     }
 
     FineGrainedScores {
         object_score: total_object_score / ev_count as f64,
-        temporal_score: total_temporal_score / ev_count as f64,
+        combined_candidate_object_score: total_combined_candidate_object_score / ev_count as f64,
+        combined_candidate_temporal_score: total_combined_candidate_temporal_score
+            / ev_count as f64,
         combined_score: total_combined_score / ev_count as f64,
     }
 }
@@ -917,8 +929,8 @@ mod tests {
     ///
     /// The partial target covers {i1, i2} within the interval.
     /// The complete target covers {i1, i2, i3}, but is outside the interval.
-    /// The complete object fulfilment must be preferred.
-    fn complete_candidate_beats_faster_partial_locel() -> SlimLinkedOCEL {
+    /// The partial target has the higher combined score.
+    fn faster_partial_candidate_beats_slower_complete_locel() -> SlimLinkedOCEL {
         let mut s = SlimLinkedOCEL::new();
 
         for event_type in ["place", "ship"] {
@@ -967,6 +979,75 @@ mod tests {
     }
 
     #[test]
+    fn signed_time_ranges_apply_to_ep_and_as() {
+        let source = DateTime::parse_from_rfc3339("2024-03-10T00:00:00Z").unwrap();
+        let target_before = DateTime::parse_from_rfc3339("2024-03-08T00:00:00Z").unwrap();
+        let target_after = DateTime::parse_from_rfc3339("2024-03-15T00:00:00Z").unwrap();
+
+        // EP: target is two days before the source.
+        let ep_interval = Some(TimeInterval {
+            min_duration: Some(chrono::Duration::days(-3)),
+            max_duration: Some(chrono::Duration::days(-1)),
+        });
+
+        let ep_score =
+            calculate_pair_time_score(&source, &target_before, OCDeclareArcType::EP, &ep_interval);
+
+        assert!((ep_score - 1.0).abs() < 1e-9);
+
+        // AS: target is five days after the source, while the allowed range
+        // is from three days before to two days after the source.
+        let as_interval = Some(TimeInterval {
+            min_duration: Some(chrono::Duration::days(-3)),
+            max_duration: Some(chrono::Duration::days(2)),
+        });
+
+        let as_score =
+            calculate_pair_time_score(&source, &target_after, OCDeclareArcType::AS, &as_interval);
+
+        // Three days outside the upper bound; the score halves per day.
+        assert!((as_score - 0.125).abs() < 1e-9);
+    }
+
+    #[test]
+    fn discovers_signed_time_interval_for_as() {
+        let locel = sample_locel();
+
+        let order = ObjectTypeAssociation::new_simple("order");
+        let label = OCDeclareArcLabel {
+            each: vec![order],
+            any: vec![],
+            all: vec![],
+        };
+
+        let interval =
+            discover_time_interval("place", "ship", &label, OCDeclareArcType::AS, &locel)
+                .expect("AS should discover a time interval");
+
+        assert_eq!(interval.min_duration, Some(chrono::Duration::days(-2)));
+        assert_eq!(interval.max_duration, Some(chrono::Duration::days(5)));
+    }
+
+    #[test]
+    fn discovers_signed_time_interval_for_ep() {
+        let locel = sample_locel();
+
+        let order = ObjectTypeAssociation::new_simple("order");
+        let label = OCDeclareArcLabel {
+            each: vec![order],
+            any: vec![],
+            all: vec![],
+        };
+
+        let interval =
+            discover_time_interval("place", "ship", &label, OCDeclareArcType::EP, &locel)
+                .expect("EP should discover a time interval");
+
+        assert_eq!(interval.min_duration, Some(chrono::Duration::days(-2)));
+        assert_eq!(interval.max_duration, Some(chrono::Duration::days(-2)));
+    }
+
+    #[test]
     fn candidate_based_scoring_distinguishes_all_from_each() {
         let locel = partial_all_locel();
 
@@ -997,7 +1078,7 @@ mod tests {
         // No single ship event contains all three items. The best candidate
         // contains {i2, i3}, so it covers two out of three required items.
         assert!((all_scores.object_score - 2.0 / 3.0).abs() < 1e-9);
-        assert!((all_scores.temporal_score - 1.0).abs() < 1e-9);
+        assert!((all_scores.combined_candidate_temporal_score - 1.0).abs() < 1e-9);
         assert!((all_scores.combined_score - 2.0 / 3.0).abs() < 1e-9);
 
         let each_label = OCDeclareArcLabel {
@@ -1018,13 +1099,13 @@ mod tests {
 
         // EACH may use e1 for i1 and e2 for i2/i3, so every binding is fulfilled.
         assert!((each_scores.object_score - 1.0).abs() < 1e-9);
-        assert!((each_scores.temporal_score - 1.0).abs() < 1e-9);
+        assert!((each_scores.combined_candidate_temporal_score - 1.0).abs() < 1e-9);
         assert!((each_scores.combined_score - 1.0).abs() < 1e-9);
     }
 
     #[test]
-    fn complete_candidate_is_preferred_over_faster_partial_candidate() {
-        let locel = complete_candidate_beats_faster_partial_locel();
+    fn faster_partial_candidate_is_preferred_over_slower_complete_candidate() {
+        let locel = faster_partial_candidate_beats_slower_complete_locel();
 
         let source = EventOrSynthetic::Event(*locel.get_evs_of_type("place").next().unwrap());
 
@@ -1053,11 +1134,12 @@ mod tests {
             None,
         );
 
-        // A complete candidate exists, so it must be selected before the
-        // temporally better partial candidate.
+        // The partial candidate has Obj = 2/3 and Time = 1.0, so its
+        // combined score (2/3) is higher than the complete candidate's 0.25.
         assert!((scores.object_score - 1.0).abs() < 1e-9);
-        assert!((scores.temporal_score - 0.25).abs() < 1e-9);
-        assert!((scores.combined_score - 0.25).abs() < 1e-9);
+        assert!((scores.combined_candidate_object_score - 2.0 / 3.0).abs() < 1e-9);
+        assert!((scores.combined_candidate_temporal_score - 1.0).abs() < 1e-9);
+        assert!((scores.combined_score - 2.0 / 3.0).abs() < 1e-9);
     }
 
     /// Checking with and without the index must agree, across arc types/labels/counts
