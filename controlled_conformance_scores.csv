@@ -1,0 +1,4 @@
+dataset,noise,from_event,to_event,arc_type,counts,label,time_lower_bound_seconds,time_upper_bound_seconds,std_score,object_score,combined_candidate_object_score,combined_candidate_temporal_score,combined_score
+controlled-soft-gap,0,place order,confirm order,"EF","(Some(1), None)","OCDeclareArcLabel { each: [Simple { object_type: ""orders"" }], any: [], all: [Simple { object_type: ""items"" }] }",0,7200,0.0000,0.6875,0.6250,0.8552,0.5458
+controlled-soft-gap,0,place order,pay order,"EF","(Some(1), None)","OCDeclareArcLabel { each: [Simple { object_type: ""orders"" }], any: [], all: [Simple { object_type: ""items"" }] }",0,86400,0.0000,0.5625,0.5625,0.6326,0.3397
+controlled-soft-gap,0,confirm order,pay order,"EF","(Some(1), None)","OCDeclareArcLabel { each: [Simple { object_type: ""orders"" }], any: [], all: [Simple { object_type: ""items"" }] }",0,86400,0.0000,0.6000,0.6000,0.7953,0.4950

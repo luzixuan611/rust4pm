@@ -565,6 +565,20 @@ pub fn evaluate_arc_score_components(
     )
 }
 
+/// Evaluates score components against a caller-provided temporal interval.
+/// Useful when the rule and its interval are specified separately from
+/// the log being evaluated.
+pub fn evaluate_arc_score_components_with_interval(
+    from_et: &str,
+    to_et: &str,
+    label: &OCDeclareArcLabel,
+    interval: &Option<TimeInterval>,
+    arc_type: OCDeclareArcType,
+    linked_ocel: &SlimLinkedOCEL,
+) -> FineGrainedScores {
+    arc_fine_grained_score_components(from_et, to_et, label, interval, arc_type, linked_ocel, None)
+}
+
 pub fn evaluate_arc_conformance(
     from_et: &str,
     to_et: &str,

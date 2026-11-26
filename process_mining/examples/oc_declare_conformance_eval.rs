@@ -94,6 +94,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     /*(
         "BPIC19",
         PathBuf::from("/Users/zixuanlu/Desktop/dataset/BPIC19.jsonocel-OCEL2.xml"),
+    ),
+    (
+        "controlledOM",
+        PathBuf::from("/Users/zixuanlu/Desktop/dataset/controlled-order-management-soft-object-gap.json"),
     ),*/
     ];
 
